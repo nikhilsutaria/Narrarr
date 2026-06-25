@@ -6,6 +6,20 @@
 
 ---
 
+## Session 1 — emulator pass (2026-06-26, Android 12 / API 32 x86)
+
+Driven via Maestro on `emulator-5554`; functional items below confirmed. Audio quality, real-hardware behaviour, and network downloads still pending a physical device.
+
+**Bugs found & fixed (commit `80cadf2`):**
+- 🔴 **Blocker:** `MainActivity` was a plain `FlutterFragmentActivity`, so `audio_service`'s `AudioService.init` threw and the reader hung on "Opening book…" for every book. Fixed → extends `AudioServiceFragmentActivity`. (Not caught by unit tests — no real platform channel.)
+- 🟠 **Regression:** the Reading-settings sheet overflowed (132px) and wasn't scrollable after Phase 4 added the dyslexia sliders, clipping the word/paragraph sliders and the Page theme selector. Fixed → `isScrollControlled` + `SingleChildScrollView`.
+
+**Verified on emulator:** book persistence + restored reading position; reader renders EPUB; Listen starts narration; in-app transport bar (prev/play-pause/next/stop); Now-Playing notification w/ title+author; notification pause ⇄ in-app sync; resume; stop dismisses bar; **tap-to-seek**; **skip-next/prev**; sentence highlight + advance; onboarding once; Settings → Voices/Accessibility/About; Voices catalog (amy-low Active + 2 downloadable w/ sizes); dyslexia spacing sliders apply live; Atkinson Hyperlegible default.
+
+**Still pending (your ears / a real device):** audio quality + gapless + no-drift-over-chapter; pause/resume *same-sentence* fidelity; audio focus (call / other app / duck / headphone unplug); real lock-screen + long backgrounded session; voice download over network + airplane-mode offline (also blocked by placeholder catalog URLs / null checksums); TalkBack double-speak + focus order; thermal/battery/latency/RTF on mid-range Android; cross-chapter narration; messy-EPUB skip of footnotes/captions; empty-library + bad-file import states.
+
+---
+
 ## PHASE 2 — Background read-aloud
 
 ### Background playback & lock-screen (core of Phase 2)
