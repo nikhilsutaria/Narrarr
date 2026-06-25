@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'tts_engine.dart';
 import 'tts_synth_isolate.dart';
+import 'voice_catalog.dart';
 import 'voice_manager.dart';
 
 export 'voice_manager.dart' show VoiceConfig;
@@ -21,10 +22,10 @@ export 'voice_manager.dart' show VoiceConfig;
 /// audio-end). The position-driven sync layer is a Phase-3 task; this engine
 /// still serves as the source of truth for measured clip durations there.
 class NeuralNarrator implements TtsEngine {
-  NeuralNarrator({this.voice = VoiceConfig.amyLow, VoiceManager? voiceManager})
+  NeuralNarrator({this.voice = VoiceCatalog.amyLow, VoiceManager? voiceManager})
       : _voiceManager = voiceManager ?? BundledVoiceManager();
 
-  final VoiceConfig voice;
+  VoiceConfig voice;
   final VoiceManager _voiceManager;
 
   final TtsSynthIsolate _synth = TtsSynthIsolate();

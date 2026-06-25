@@ -8,8 +8,12 @@ import 'package:narrarr/narration/voice_manager.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
-  const voice =
-      VoiceConfig(id: 'test-voice', asset: 'a.tar', modelFile: 'model.onnx');
+  const voice = VoiceConfig(
+    id: 'test-voice',
+    displayName: 'Test Voice',
+    asset: 'a.tar',
+    modelFile: 'model.onnx',
+  );
 
   Uint8List fixtureTar() {
     final model = utf8.encode('fake-onnx-bytes');

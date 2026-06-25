@@ -6,23 +6,28 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-/// A Piper voice: a bundled (and, later, downloadable) `.tar` of the ONNX model
-/// + tokens + espeak-ng data.
+/// A Piper voice. Either **bundled** (ships as a `.tar` asset) or
+/// **downloadable** (fetched from [url], integrity-checked with [sha256]).
 class VoiceConfig {
-  final String id; // e.g. 'vits-piper-en_US-amy-low'
-  final String asset; // bundled tar asset path
-  final String modelFile; // .onnx filename inside the extracted dir
   const VoiceConfig({
     required this.id,
-    required this.asset,
+    required this.displayName,
     required this.modelFile,
+    this.asset,
+    this.url,
+    this.sha256,
+    this.sizeBytes = 0,
   });
 
-  static const amyLow = VoiceConfig(
-    id: 'vits-piper-en_US-amy-low',
-    asset: 'assets/voices/vits-piper-en_US-amy-low.tar',
-    modelFile: 'en_US-amy-low.onnx',
-  );
+  final String id; // e.g. 'vits-piper-en_US-amy-low'
+  final String displayName; // e.g. 'Amy (low)'
+  final String modelFile; // .onnx filename inside the extracted dir
+  final String? asset; // bundled tar asset path (null if download-only)
+  final String? url; // download tar URL (null if bundled-only)
+  final String? sha256; // expected tar checksum (download voices)
+  final int sizeBytes; // approx download size for the UI
+
+  bool get isBundled => asset != null;
 }
 
 /// Resolves a [VoiceConfig] to an on-disk, ready-to-load model directory.
@@ -60,17 +65,23 @@ class BundledVoiceManager implements VoiceManager {
     if (await File(p.join(modelDir, voice.modelFile)).exists()) {
       return modelDir; // already extracted
     }
-    final bytes = await _loadAsset(voice.asset);
-    for (final entry in TarDecoder().decodeBytes(bytes)) {
-      final outPath = p.join(support.path, entry.name);
-      if (entry.isFile) {
-        await Directory(p.dirname(outPath)).create(recursive: true);
-        await File(outPath).writeAsBytes(entry.content as List<int>);
-      } else {
-        await Directory(outPath).create(recursive: true);
-      }
-    }
+    final bytes = await _loadAsset(voice.asset!);
+    await extractVoiceTar(bytes, support);
     return modelDir;
+  }
+}
+
+/// Extract a voice `.tar` (model + tokens + espeak-ng-data) into [support].
+/// Shared by [BundledVoiceManager] and [DownloadingVoiceManager].
+Future<void> extractVoiceTar(Uint8List bytes, Directory support) async {
+  for (final entry in TarDecoder().decodeBytes(bytes)) {
+    final outPath = p.join(support.path, entry.name);
+    if (entry.isFile) {
+      await Directory(p.dirname(outPath)).create(recursive: true);
+      await File(outPath).writeAsBytes(entry.content as List<int>);
+    } else {
+      await Directory(outPath).create(recursive: true);
+    }
   }
 }
 
