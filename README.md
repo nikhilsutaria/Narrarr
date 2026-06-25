@@ -14,9 +14,11 @@ Narrarr turns your **personal, DRM-free EPUBs** into a Kindle-style *immersion r
 
 ---
 
-## 📋 Status: concept validated (POC built)
+## 📋 Status: build started (foundation + working slice)
 
-Narrarr is **pre-build**, but the core concept has now been **proven in a throwaway proof-of-concept**: a Flutter app that reads a real EPUB aloud on Android with an offline neural voice (sherpa-onnx + Piper) while the **current sentence highlights in sync** — system and neural voices interchangeable, tap-to-seek, gapless continuous playback.
+Narrarr has moved from research/POC into **active development**. The Flutter app now lives at the **repo root** (`lib/`, `android/`, `ios/`), built on the stack validated by the [Phase 0 reader spike](docs/poc/04-reader-spike-findings.md). The first vertical slice runs end-to-end on Android: open a bundled EPUB in a real `flutter_readium` reader → read it aloud with an offline neural voice (sherpa-onnx + Piper) → **the current sentence highlights in sync and the page auto-follows**.
+
+Earlier, the core concept was **proven in a throwaway proof-of-concept**: a Flutter app that reads a real EPUB aloud on Android with an offline neural voice while the current sentence highlights in sync — system and neural voices interchangeable, tap-to-seek, gapless continuous playback. (The POC and spike are now removed; their techniques live in `lib/` and their findings in `docs/`.)
 
 - 🔬 **Research & validation** (market gap, feasibility, architecture, legal, phased plan): **[`docs/research/`](docs/research/README.md)**
 - 🧪 **POC results + the hard-won TTS-playback findings**: **[`docs/poc/`](docs/poc/README.md)**

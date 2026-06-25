@@ -42,4 +42,6 @@ This is a research deliverable, not code. The intended next steps:
 2. If green-lit, **run the Phase 0 validation spike** ([06](06-mvp-scope-and-roadmap.md)) — the cheapest way to confirm the stack before real investment.
 3. Then proceed through the roadmap.
 
+> **Update (2026-06-24): a proof-of-concept was built and validated** — see **[../poc/](../poc/README.md)**. It proved the core loop (EPUB → offline neural voice → synced sentence highlight) on Android and pre-solved much of the neural-playback work, but on a custom reader + `audioplayers` rather than `flutter_readium` + `just_audio`. The genuine Phase 0 question (`flutter_readium` under the neural pipeline, on real devices) **remains open**. Read the POC findings before starting real development.
+
 *Method note: research was conducted via parallel web-research agents plus targeted first-hand verification of the most load-bearing claims; confidence is flagged per-source in [sources.md](sources.md).*
