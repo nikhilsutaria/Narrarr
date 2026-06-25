@@ -24,6 +24,12 @@ class NarrationController extends ChangeNotifier {
   /// reader screen to flutter_readium's decoration + navigation APIs.
   Future<void> Function(int index)? onHighlight;
 
+  /// Supplies the next chapter's sentences when the current chapter is
+  /// exhausted, for whole-book playback. Return an empty list at the book's
+  /// end. The reader sets this; it also re-points the highlight target to the
+  /// new chapter before returning.
+  Future<List<String>> Function()? fetchNextChapter;
+
   List<String> _sentences = const [];
   int _index = 0;
   bool _playing = false;
@@ -53,22 +59,33 @@ class NarrationController extends ChangeNotifier {
     _paused = false;
     notifyListeners();
 
-    for (var i = (from ?? _index).clamp(0, _sentences.length - 1);
-        i < _sentences.length;
-        i++) {
-      if (token != _token) return; // superseded by a newer play()/stop()
-      _index = i;
-      notifyListeners();
-      await onHighlight?.call(i);
+    var i = (from ?? _index).clamp(0, _sentences.length - 1);
+    while (true) {
+      for (; i < _sentences.length; i++) {
+        if (token != _token) return; // superseded by a newer play()/stop()
+        _index = i;
+        notifyListeners();
+        await onHighlight?.call(i);
 
-      // Look-ahead: pre-synthesize the next couple of sentences and arm the
-      // immediate next one on the spare player, so the hand-off is gapless.
-      for (var j = i + 1; j <= i + 2 && j < _sentences.length; j++) {
-        engine.precache(_sentences[j]);
+        // Look-ahead: pre-synthesize the next couple of sentences and arm the
+        // immediate next one on the spare player, so the hand-off is gapless.
+        for (var j = i + 1; j <= i + 2 && j < _sentences.length; j++) {
+          engine.precache(_sentences[j]);
+        }
+        if (i + 1 < _sentences.length) engine.preloadNext(_sentences[i + 1]);
+
+        await engine.speak(_sentences[i]);
       }
-      if (i + 1 < _sentences.length) engine.preloadNext(_sentences[i + 1]);
 
-      await engine.speak(_sentences[i]);
+      // Chapter exhausted — try to roll into the next one without dropping the
+      // playing state (keeps the transport bar up; TTS already pauses between
+      // chapters naturally).
+      if (token != _token) return;
+      final next = await fetchNextChapter?.call() ?? const [];
+      if (token != _token) return;
+      if (next.isEmpty) break; // end of book
+      _sentences = next;
+      i = 0;
     }
 
     if (token == _token) {

@@ -19,10 +19,10 @@ import 'reader_settings_sheet.dart';
 /// auto-follows. Supports adjustable font/size/spacing/theme and remembers the
 /// reading position.
 ///
-/// Reads the bundled sample's Book IX (its hand-picked demo chapter) and the
-/// first substantive chapter of any imported book. Multi-chapter navigation,
-/// position-driven sync, background playback, and speed control are subsequent
-/// MVP tasks (see the Phase 1 plan + MVP spec).
+/// Narrates the whole book across chapters (starting at the bundled sample's
+/// Book IX, or the first substantive chapter of an imported book), with
+/// background playback + lock-screen controls. Position-driven sync and speed
+/// control are subsequent MVP tasks (Phase 3 / fast-follow).
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key, required this.book, this.repository});
 
@@ -50,6 +50,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Publication? _pub;
   String _status = 'Opening book…';
   String _chapterHref = '';
+
+  /// Whole book, segmented per chapter in reading order; [_spineIndex] is the
+  /// chapter currently being narrated. Drives cross-chapter playback.
+  List<ResolvedChapter> _spine = const [];
+  int _spineIndex = 0;
+
   Locator? _initialLocator;
   bool _narratorReady = false;
   bool _preparingNarrator = false;
@@ -88,19 +94,25 @@ class _ReaderScreenState extends State<ReaderScreen> {
       final pub = await _readium.openPublication('file://$path');
 
       final bytes = await File(path).readAsBytes();
-      final chapter = await resolveChapter(
-        bytes,
-        contentFileHint: widget.book.isBundledSample ? 'book-9' : null,
-      );
+      _spine = await resolveSpine(bytes);
 
-      final link = pub.readingOrder.firstWhere(
-        (l) => l.href.toLowerCase().contains(chapter.hrefHint.toLowerCase()),
-        orElse: () => pub.readingOrder.first,
-      );
+      // Start at the bundled sample's demo chapter (Book IX) if present;
+      // otherwise the first substantive chapter.
+      _spineIndex = 0;
+      if (widget.book.isBundledSample) {
+        final idx = _spine
+            .indexWhere((c) => c.hrefHint.toLowerCase().contains('book-9'));
+        if (idx >= 0) _spineIndex = idx;
+      }
+      final chapter =
+          _spine.isEmpty ? (hrefHint: '', sentences: <String>[]) : _spine[_spineIndex];
+
+      _chapterHref = _hrefFor(pub, chapter.hrefHint);
 
       // Persist reading position (debounced) as the reader location changes.
       _locSub = _readium.onTextLocatorChanged.listen(_onLocatorChanged);
 
+      _narration!.fetchNextChapter = _nextChapterSentences;
       _handler!.loadChapter(
         bookId: widget.book.id,
         title: widget.book.title,
@@ -110,7 +122,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
       setState(() {
         _pub = pub;
-        _chapterHref = link.href;
         _status = chapter.sentences.isEmpty
             ? 'No readable text found in this book.'
             : 'Ready';
@@ -119,6 +130,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
       debugPrint('[reader] open failed: $e\n$st');
       setState(() => _status = 'Failed to open book: $e');
     }
+  }
+
+  /// Match a chapter's content-file hint to a reading-order href.
+  String _hrefFor(Publication pub, String hrefHint) {
+    if (hrefHint.isEmpty) {
+      return pub.readingOrder.isEmpty ? '' : pub.readingOrder.first.href;
+    }
+    return pub.readingOrder
+        .firstWhere(
+          (l) => l.href.toLowerCase().contains(hrefHint.toLowerCase()),
+          orElse: () => pub.readingOrder.first,
+        )
+        .href;
+  }
+
+  /// Controller callback: advance to the next spine chapter for whole-book
+  /// playback. Re-points the highlight target before returning its sentences;
+  /// empty list signals end of book.
+  Future<List<String>> _nextChapterSentences() async {
+    if (_spineIndex + 1 >= _spine.length) return const [];
+    _spineIndex++;
+    final next = _spine[_spineIndex];
+    final pub = _pub;
+    if (pub != null) _chapterHref = _hrefFor(pub, next.hrefHint);
+    return next.sentences;
   }
 
   // ---- reading position persistence ----

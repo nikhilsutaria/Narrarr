@@ -60,6 +60,31 @@ void main() {
     await c.stop();
   });
 
+  test('fetchNextChapter rolls into the next chapter, then ends the book',
+      () async {
+    final fake = FakeTtsEngine();
+    final c = NarrationController(engine: fake);
+    final chapters = [
+      ['c2-a'],
+      <String>[], // end of book
+    ];
+    c.fetchNextChapter = () async =>
+        chapters.isEmpty ? const [] : chapters.removeAt(0);
+    c.setSentences(['c1-a', 'c1-b']);
+
+    unawaited(c.play());
+    // Drain: each pending speak resolves on demand, so step through every
+    // sentence in chapter 1 and chapter 2 until the book ends.
+    for (var i = 0; i < 10 && c.isPlaying; i++) {
+      await pumpEventQueue();
+      fake.finishCurrent();
+    }
+    await pumpEventQueue();
+
+    expect(fake.spoken, ['c1-a', 'c1-b', 'c2-a']);
+    expect(c.isPlaying, false);
+  });
+
   test('stop clears playing and paused', () async {
     final fake = FakeTtsEngine();
     final c = NarrationController(engine: fake);
