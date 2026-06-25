@@ -1,33 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:archive/archive.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'tts_engine.dart';
 import 'tts_synth_isolate.dart';
+import 'voice_manager.dart';
 
-/// A bundled (or, later, downloadable) Piper voice.
-class VoiceConfig {
-  final String id; // e.g. 'vits-piper-en_US-amy-low'
-  final String asset; // bundled tar asset path
-  final String modelFile; // .onnx filename inside the extracted dir
-  const VoiceConfig({
-    required this.id,
-    required this.asset,
-    required this.modelFile,
-  });
-
-  static const amyLow = VoiceConfig(
-    id: 'vits-piper-en_US-amy-low',
-    asset: 'assets/voices/vits-piper-en_US-amy-low.tar',
-    modelFile: 'en_US-amy-low.onnx',
-  );
-}
+export 'voice_manager.dart' show VoiceConfig;
 
 /// On-device neural TTS via sherpa-onnx + Piper, with gapless continuous
 /// playback. Ported from the POC ([docs/poc/02-tts-pipeline-findings.md]); the
@@ -38,9 +21,11 @@ class VoiceConfig {
 /// audio-end). The position-driven sync layer is a Phase-3 task; this engine
 /// still serves as the source of truth for measured clip durations there.
 class NeuralNarrator implements TtsEngine {
-  NeuralNarrator({this.voice = VoiceConfig.amyLow});
+  NeuralNarrator({this.voice = VoiceConfig.amyLow, VoiceManager? voiceManager})
+      : _voiceManager = voiceManager ?? BundledVoiceManager();
 
   final VoiceConfig voice;
+  final VoiceManager _voiceManager;
 
   final TtsSynthIsolate _synth = TtsSynthIsolate();
   // Two players ping-pong: while one plays the current clip, the next clip's
@@ -76,7 +61,7 @@ class NeuralNarrator implements TtsEngine {
   @override
   Future<void> init() async {
     if (_inited) return;
-    final modelDir = await _ensureModelExtracted();
+    final modelDir = await _voiceManager.ensureAvailable(voice);
     await _synth.start(
       model: p.join(modelDir, voice.modelFile),
       tokens: p.join(modelDir, 'tokens.txt'),
@@ -91,26 +76,6 @@ class NeuralNarrator implements TtsEngine {
       await _synth.synth('Ready.');
     } catch (_) {}
     _inited = true;
-  }
-
-  /// Extract the bundled `.tar` voice into app-support storage on first run.
-  Future<String> _ensureModelExtracted() async {
-    final support = await getApplicationSupportDirectory();
-    final modelDir = p.join(support.path, voice.id);
-    if (await File(p.join(modelDir, voice.modelFile)).exists()) return modelDir;
-    final data = await rootBundle.load(voice.asset);
-    final bytes =
-        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-    for (final entry in TarDecoder().decodeBytes(bytes)) {
-      final outPath = p.join(support.path, entry.name);
-      if (entry.isFile) {
-        await Directory(p.dirname(outPath)).create(recursive: true);
-        await File(outPath).writeAsBytes(entry.content as List<int>);
-      } else {
-        await Directory(outPath).create(recursive: true);
-      }
-    }
-    return modelDir;
   }
 
   @override
