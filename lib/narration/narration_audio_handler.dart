@@ -28,9 +28,13 @@ class NarrationAudioHandler extends BaseAudioHandler {
     required String title,
     String? author,
     required List<String> sentences,
+    String voiceId = 'unknown',
+    String chapterHref = '',
     Future<void> Function(int index)? onHighlight,
   }) {
     controller.onHighlight = onHighlight;
+    controller.voiceId = voiceId;
+    controller.chapterHref = chapterHref;
     controller.setSentences(sentences);
     mediaItem.add(MediaItem(id: bookId, title: title, artist: author));
   }
@@ -59,6 +63,9 @@ class NarrationAudioHandler extends BaseAudioHandler {
 
   @override
   Future<void> skipToPrevious() => controller.skipSentence(-1);
+
+  /// Seek narration to a specific sentence (tap-to-seek from the reader).
+  Future<void> seekToSentence(int index) => controller.seekToSentence(index);
 
   // ---- audio focus / interruptions (#9) ----
 

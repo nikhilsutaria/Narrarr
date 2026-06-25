@@ -6,9 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_readium/flutter_readium.dart';
 
 import '../library/book.dart';
+import '../library/drift/library_database.dart';
 import '../library/library_repository.dart';
 import '../narration/narration_audio_handler.dart';
 import '../sync/narration_controller.dart';
+import '../sync/sentence_match.dart';
+import '../sync/sentence_timing.dart';
+import '../sync/timing_repository.dart';
 import '../ui/theme.dart';
 import 'book_text.dart';
 import 'reader_settings.dart';
@@ -24,12 +28,21 @@ import 'reader_settings_sheet.dart';
 /// background playback + lock-screen controls. Position-driven sync and speed
 /// control are subsequent MVP tasks (Phase 3 / fast-follow).
 class ReaderScreen extends StatefulWidget {
-  const ReaderScreen({super.key, required this.book, this.repository});
+  const ReaderScreen({
+    super.key,
+    required this.book,
+    this.repository,
+    this.timingRepository,
+  });
 
   final Book book;
 
   /// When provided, the reading position is persisted back to this repository.
   final LibraryRepository? repository;
+
+  /// Caches measured sentence timings (Phase 3). Defaults to one backed by the
+  /// app's drift database when not injected.
+  final TimingRepository? timingRepository;
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -50,6 +63,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Publication? _pub;
   String _status = 'Opening book…';
   String _chapterHref = '';
+
+  TimingRepository? _timings;
+  // The bundled offline default; Phase 4 makes this user-selectable.
+  static const _voiceId = 'vits-piper-en_US-amy-low';
 
   /// Whole book, segmented per chapter in reading order; [_spineIndex] is the
   /// chapter currently being narrated. Drives cross-chapter playback.
@@ -80,6 +97,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _readium.setDefaultPreferences(_settings.toEpubPreferences());
     _handler = await narrationHandler();
     _handler!.controller.addListener(_onNarrationChanged);
+    _timings = widget.timingRepository ?? TimingRepository(LibraryDatabase());
     await _open();
   }
 
@@ -113,13 +131,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _locSub = _readium.onTextLocatorChanged.listen(_onLocatorChanged);
 
       _narration!.fetchNextChapter = _nextChapterSentences;
+      _narration!.onChapterTimed = _persistTimings;
       _handler!.loadChapter(
         bookId: widget.book.id,
         title: widget.book.title,
         author: widget.book.author,
         sentences: chapter.sentences,
+        voiceId: _voiceId,
+        chapterHref: chapter.hrefHint,
         onHighlight: _highlightSentence,
       );
+
+      // Re-listen fast path: if this chapter was measured before with this
+      // voice, seed the timing table so tap-to-seek works before playback.
+      final cached = await _timings?.load(
+        bookId: widget.book.id,
+        chapterHref: chapter.hrefHint,
+        voiceId: _voiceId,
+      );
+      if (cached != null) _narration!.primeTimings(cached);
+
       setState(() {
         _pub = pub;
         _status = chapter.sentences.isEmpty
@@ -154,7 +185,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final next = _spine[_spineIndex];
     final pub = _pub;
     if (pub != null) _chapterHref = _hrefFor(pub, next.hrefHint);
+    // Key the next chapter's timing builder before the controller swaps to it.
+    _narration?.chapterHref = next.hrefHint;
     return next.sentences;
+  }
+
+  /// Persist a chapter's measured timings so re-listening doesn't re-measure.
+  Future<void> _persistTimings(ChapterTimings t) async {
+    await _timings?.save(bookId: widget.book.id, timings: t);
   }
 
   // ---- reading position persistence ----
@@ -196,6 +234,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
     ]);
     await _readium.goToLocator(loc);
+  }
+
+  /// Tap-to-seek: the reader fires [onTextSelected] when the user selects text;
+  /// resolve the selection to a sentence and jump narration there.
+  Future<void> _seekToSelection(TextSelectionEvent e) async {
+    final c = _narration;
+    if (c == null || c.sentenceCount == 0) return;
+    final selected =
+        (e.selectedText ?? e.locator.text?.highlight ?? '').trim();
+    final i = resolveSentenceIndex(selected, [
+      for (var k = 0; k < c.sentenceCount; k++) c.sentenceTextAt(k),
+    ]);
+    if (i >= 0) await _handler!.seekToSentence(i);
   }
 
   // ---- settings ----
@@ -280,6 +331,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         publication: pub,
         initialLocator: _initialLocator,
         loadingWidget: const Center(child: CircularProgressIndicator()),
+        // Tap-to-seek: selecting a sentence jumps narration to it.
+        onTextSelected: _seekToSelection,
       ),
       // When narration is active, the bottom bar carries the transport controls;
       // otherwise a single "Listen" FAB starts it.

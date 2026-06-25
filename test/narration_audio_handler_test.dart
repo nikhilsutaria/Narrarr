@@ -47,6 +47,18 @@ void main() {
     await handler.stop();
   });
 
+  test('seekToSentence plays from the tapped index', () async {
+    final controller = NarrationController(engine: FakeTtsEngine());
+    final handler = NarrationAudioHandler(controller);
+    handler.loadChapter(bookId: 'b1', title: 'Book', sentences: ['a', 'b', 'c']);
+
+    unawaited(handler.seekToSentence(2)); // blocks on the pending speak
+    await pumpEventQueue();
+    expect(controller.index, 2);
+
+    await controller.stop();
+  });
+
   test('loadChapter publishes the book as the media item', () async {
     final controller = NarrationController(engine: FakeTtsEngine());
     final handler = NarrationAudioHandler(controller);
