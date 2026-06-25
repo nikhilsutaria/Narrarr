@@ -86,6 +86,40 @@ Future<void> showReaderSettingsSheet(
                   ),
                   const SizedBox(height: 8),
 
+                  // Dyslexia-friendly spacing
+                  const _Label('Dyslexia-friendly spacing'),
+                  Semantics(
+                    label: 'Letter spacing',
+                    child: Slider(
+                      value: s.letterSpacing,
+                      max: 0.25,
+                      divisions: 25,
+                      label: s.letterSpacing.toStringAsFixed(2),
+                      onChanged: (v) => update(s.copyWith(letterSpacing: v)),
+                    ),
+                  ),
+                  Semantics(
+                    label: 'Word spacing',
+                    child: Slider(
+                      value: s.wordSpacing,
+                      max: 0.5,
+                      divisions: 25,
+                      label: s.wordSpacing.toStringAsFixed(2),
+                      onChanged: (v) => update(s.copyWith(wordSpacing: v)),
+                    ),
+                  ),
+                  Semantics(
+                    label: 'Paragraph spacing',
+                    child: Slider(
+                      value: s.paragraphSpacing,
+                      max: 2.0,
+                      divisions: 20,
+                      label: s.paragraphSpacing.toStringAsFixed(1),
+                      onChanged: (v) => update(s.copyWith(paragraphSpacing: v)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
                   // Theme
                   const _Label('Page theme'),
                   Wrap(

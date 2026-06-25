@@ -7,6 +7,7 @@ import 'package:flutter_readium/flutter_readium.dart';
 
 import '../library/book.dart';
 import '../library/drift/library_database.dart';
+import '../a11y/a11y_policy.dart';
 import '../library/library_repository.dart';
 import '../narration/narration_audio_handler.dart';
 import '../narration/voice_catalog.dart';
@@ -335,12 +336,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
         ],
       ),
-      body: ReadiumReaderWidget(
-        publication: pub,
-        initialLocator: _initialLocator,
-        loadingWidget: const Center(child: CircularProgressIndicator()),
-        // Tap-to-seek: selecting a sentence jumps narration to it.
-        onTextSelected: _seekToSelection,
+      // While TalkBack is on AND we're narrating, hide the book content from the
+      // a11y tree so the screen reader doesn't double-read what we speak (#12).
+      body: ExcludeSemantics(
+        excluding: shouldExcludeContentSemantics(
+          screenReaderOn: MediaQuery.of(context).accessibleNavigation,
+          narrating: _active,
+        ),
+        child: ReadiumReaderWidget(
+          publication: pub,
+          initialLocator: _initialLocator,
+          loadingWidget: const Center(child: CircularProgressIndicator()),
+          // Tap-to-seek: selecting a sentence jumps narration to it.
+          onTextSelected: _seekToSelection,
+        ),
       ),
       // When narration is active, the bottom bar carries the transport controls;
       // otherwise a single "Listen" FAB starts it.
