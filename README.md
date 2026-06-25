@@ -14,11 +14,14 @@ Narrarr turns your **personal, DRM-free EPUBs** into a Kindle-style *immersion r
 
 ---
 
-## 📋 Status: research & planning
+## 📋 Status: concept validated (POC built)
 
-Narrarr is in the **pre-build research phase** — no app code yet. The validation work (market gap, technical feasibility, architecture, legal, and a phased build plan) lives in **[`docs/research/`](docs/research/README.md)**.
+Narrarr is **pre-build**, but the core concept has now been **proven in a throwaway proof-of-concept**: a Flutter app that reads a real EPUB aloud on Android with an offline neural voice (sherpa-onnx + Piper) while the **current sentence highlights in sync** — system and neural voices interchangeable, tap-to-seek, gapless continuous playback.
 
-**Verdict so far:** feasible for a solo developer, with a genuinely open niche. The build is gated on a short **validation spike** before real investment — see the [roadmap](docs/research/06-mvp-scope-and-roadmap.md).
+- 🔬 **Research & validation** (market gap, feasibility, architecture, legal, phased plan): **[`docs/research/`](docs/research/README.md)**
+- 🧪 **POC results + the hard-won TTS-playback findings**: **[`docs/poc/`](docs/poc/README.md)**
+
+**Verdict:** feasible for a solo developer, with a genuinely open niche. The POC de-risked the neural read-aloud + sync loop; the **Phase 0 reader spike** then de-risked the last big unknown — `flutter_readium` renders a real EPUB and lets our code **highlight an arbitrary sentence under the neural pipeline, with auto page-follow** (✅ PASS on an emulator; timing still to confirm on real hardware). See the [reader-spike findings](docs/poc/04-reader-spike-findings.md), [POC recommendations](docs/poc/03-recommendations.md), the [MVP design spec](docs/superpowers/specs/2026-06-25-narrarr-mvp-design.md), and the [roadmap](docs/research/06-mvp-scope-and-roadmap.md).
 
 ## 🧱 Planned stack (at a glance)
 
@@ -34,9 +37,11 @@ Narrarr is in the **pre-build research phase** — no app code yet. The validati
 
 ## 📖 Documentation
 
-Start here → **[docs/research/README.md](docs/research/README.md)**
-
+**Research** → [docs/research/README.md](docs/research/README.md)
 1. [Product Vision](docs/research/01-product-vision.md) · 2. [Market & Competition](docs/research/02-market-competitive-analysis.md) · 3. [Technical Feasibility](docs/research/03-technical-feasibility.md) · 4. [Architecture & Stack](docs/research/04-architecture-and-stack.md) · 5. [Risks, Legal & Compliance](docs/research/05-risks-legal-compliance.md) · 6. [MVP Scope & Roadmap](docs/research/06-mvp-scope-and-roadmap.md) · [Sources](docs/research/sources.md)
+
+**POC** → [docs/poc/README.md](docs/poc/README.md)
+1. [What Was Built](docs/poc/01-what-was-built.md) · 2. [TTS Pipeline Findings](docs/poc/02-tts-pipeline-findings.md) · 3. [Recommendations for the App](docs/poc/03-recommendations.md)
 
 ## ⚖️ Notes
 
