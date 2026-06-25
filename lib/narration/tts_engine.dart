@@ -16,6 +16,10 @@ abstract class TtsEngine {
   /// naturally OR when [stop] is called.
   Future<void> speak(String text);
 
+  /// Measured audio length (ms) of the most recently completed [speak], or 0 if
+  /// none has completed. Powers the Phase-3 timing table.
+  int get lastUtteranceMs;
+
   /// Optional hint to begin preparing [text] ahead of time so a later [speak]
   /// of the same text is instant. Engines that stream internally (e.g. system
   /// TTS) may treat this as a no-op.

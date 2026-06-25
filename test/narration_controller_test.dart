@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:narrarr/sync/narration_controller.dart';
+import 'package:narrarr/sync/sentence_timing.dart';
 
 import 'support/fake_tts_engine.dart';
 
@@ -83,6 +84,68 @@ void main() {
 
     expect(fake.spoken, ['c1-a', 'c1-b', 'c2-a']);
     expect(c.isPlaying, false);
+  });
+
+  test('captures cumulative timings as sentences finish', () async {
+    final fake = FakeTtsEngine();
+    fake.durations.addAll([1000, 2000]);
+    final c = NarrationController(engine: fake)
+      ..voiceId = 'amy'
+      ..chapterHref = 'ch1';
+    c.setSentences(['a', 'b']);
+
+    unawaited(c.play());
+    await pumpEventQueue();
+    fake.finishCurrent(); // 'a' = 1000ms
+    await pumpEventQueue();
+    fake.finishCurrent(); // 'b' = 2000ms
+    await pumpEventQueue();
+
+    final t = c.currentTimings!;
+    expect(t.voiceId, 'amy');
+    expect(t.chapterHref, 'ch1');
+    expect(t.sentences.map((s) => s.startMs), [0, 1000]);
+    expect(t.sentences.map((s) => s.durationMs), [1000, 2000]);
+
+    await c.stop();
+  });
+
+  test('finalizes timings on chapter roll-over via onChapterTimed', () async {
+    final fake = FakeTtsEngine();
+    final finished = <ChapterTimings>[];
+    final chapters = [
+      ['c2-a'],
+      <String>[],
+    ];
+    final c = NarrationController(engine: fake)
+      ..voiceId = 'amy'
+      ..chapterHref = 'ch1'
+      ..onChapterTimed = finished.add
+      ..fetchNextChapter = () async =>
+          chapters.isEmpty ? const [] : chapters.removeAt(0);
+    c.setSentences(['c1-a']);
+
+    unawaited(c.play());
+    for (var i = 0; i < 6 && c.isPlaying; i++) {
+      await pumpEventQueue();
+      fake.finishCurrent();
+    }
+    await pumpEventQueue();
+
+    expect(finished.first.chapterHref, 'ch1');
+    expect(finished.first.sentences.length, 1);
+  });
+
+  test('primeTimings seeds currentTimings before playback', () {
+    final c = NarrationController(engine: FakeTtsEngine())
+      ..voiceId = 'amy'
+      ..chapterHref = 'ch1';
+    c.setSentences(['a', 'b']);
+    final b = ChapterTimings.builder(chapterHref: 'ch1', voiceId: 'amy')
+      ..add(1000)
+      ..add(2000);
+    c.primeTimings(b.build());
+    expect(c.currentTimings!.indexAt(1500), 1);
   });
 
   test('stop clears playing and paused', () async {

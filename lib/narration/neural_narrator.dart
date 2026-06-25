@@ -41,6 +41,10 @@ class NeuralNarrator implements TtsEngine {
   bool _stopRequested = false;
   Completer<void>? _playing;
   int _seq = 0;
+  int _lastUtteranceMs = 0;
+
+  @override
+  int get lastUtteranceMs => _lastUtteranceMs;
 
   // Look-ahead cache: upcoming sentences pre-synthesized AND pre-written to WAV,
   // keyed by text. Keeps the pipeline ahead of playback.
@@ -112,6 +116,7 @@ class NeuralNarrator implements TtsEngine {
       if (_stopRequested || prep.isEmpty) return;
     }
     if (_stopRequested) return;
+    _lastUtteranceMs = prep.audioMs;
 
     final player = _curPlayer;
     // Play the sentence's chunk-clips back-to-back. Short clips avoid the

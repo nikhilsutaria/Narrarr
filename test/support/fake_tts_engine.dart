@@ -7,13 +7,24 @@ import 'package:narrarr/narration/tts_engine.dart';
 /// acts on it — mirroring the real "speak completes on audio-end" contract
 /// without any audio or native code.
 class FakeTtsEngine implements TtsEngine {
+  FakeTtsEngine({this.durationMs = 1000});
+
+  /// Reported [lastUtteranceMs] for each completed utterance. A single value
+  /// applies to all; override per call by pushing to [durations].
+  int durationMs;
+  final List<int> durations = [];
+
   final List<String> spoken = [];
   Completer<void>? _current;
+  int _lastUtteranceMs = 0;
   bool paused = false;
   double volume = 1.0;
 
   @override
   String get name => 'fake';
+
+  @override
+  int get lastUtteranceMs => _lastUtteranceMs;
 
   @override
   Future<void> init() async {}
@@ -25,8 +36,14 @@ class FakeTtsEngine implements TtsEngine {
     return c.future;
   }
 
+  /// Resolve the pending [speak], setting [lastUtteranceMs] to the next queued
+  /// duration (or the default).
   void finishCurrent() {
-    if (_current != null && !_current!.isCompleted) _current!.complete();
+    if (_current != null && !_current!.isCompleted) {
+      _lastUtteranceMs =
+          durations.isNotEmpty ? durations.removeAt(0) : durationMs;
+      _current!.complete();
+    }
   }
 
   @override
