@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -88,4 +89,107 @@ Future<void> extractVoiceTar(Uint8List bytes, Directory support) async {
 Future<Uint8List> _rootBundleLoad(String asset) async {
   final data = await rootBundle.load(asset);
   return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+}
+
+/// Fetches the bytes for [url] starting at [offset] (for resume). Injected for
+/// tests; production uses [httpVoiceFetcher].
+typedef VoiceBytesFetcher = Future<List<int>> Function(Uri url, {int offset});
+
+/// Downloads, verifies, extracts and manages downloadable voices, delegating
+/// bundled voices to [BundledVoiceManager]. The seam Phase 2 left for #11.
+class DownloadingVoiceManager implements VoiceManager {
+  DownloadingVoiceManager({
+    Directory? baseDir,
+    VoiceBytesFetcher? fetch,
+    Future<Uint8List> Function(String asset)? loadAsset,
+  })  : _baseDir = baseDir,
+        _fetch = fetch ?? httpVoiceFetcher,
+        _bundled = BundledVoiceManager(baseDir: baseDir, loadAsset: loadAsset);
+
+  final Directory? _baseDir;
+  final VoiceBytesFetcher _fetch;
+  final BundledVoiceManager _bundled;
+
+  Future<Directory> _base() async =>
+      _baseDir ?? await getApplicationSupportDirectory();
+
+  String _modelDirPath(Directory support, VoiceConfig v) =>
+      p.join(support.path, v.id);
+
+  @override
+  Future<String> ensureAvailable(VoiceConfig voice,
+      {void Function(double)? onProgress}) async {
+    if (voice.isBundled) return _bundled.ensureAvailable(voice);
+
+    final support = await _base();
+    final modelDir = _modelDirPath(support, voice);
+    if (await File(p.join(modelDir, voice.modelFile)).exists()) {
+      return modelDir; // already installed
+    }
+
+    final url = Uri.parse(voice.url!);
+    final partFile = File(p.join(support.path, '${voice.id}.part'));
+    await partFile.parent.create(recursive: true);
+
+    final resumeFrom = await partFile.exists() ? await partFile.length() : 0;
+    final fresh = await _fetch(url, offset: resumeFrom);
+    final sink = partFile.openSync(mode: FileMode.writeOnlyAppend);
+    try {
+      sink.writeFromSync(fresh);
+    } finally {
+      sink.closeSync();
+    }
+    onProgress?.call(1.0);
+
+    final bytes = await partFile.readAsBytes();
+    final expected = voice.sha256;
+    if (expected != null && sha256.convert(bytes).toString() != expected) {
+      await partFile.delete();
+      throw Exception('Voice ${voice.id} failed checksum verification');
+    }
+
+    await extractVoiceTar(Uint8List.fromList(bytes), support);
+    await partFile.delete();
+    return modelDir;
+  }
+
+  /// Whether [voice]'s model is present on disk.
+  Future<bool> isInstalled(VoiceConfig voice) async {
+    final support = await _base();
+    return File(p.join(_modelDirPath(support, voice), voice.modelFile)).exists();
+  }
+
+  /// Remove a downloaded voice's extracted files.
+  Future<void> delete(VoiceConfig voice) async {
+    final support = await _base();
+    final dir = Directory(_modelDirPath(support, voice));
+    if (await dir.exists()) await dir.delete(recursive: true);
+  }
+
+  /// Total bytes used by everything under app-support (rough storage figure).
+  Future<int> installedSize() async {
+    final support = await _base();
+    var total = 0;
+    await for (final e in support.list(recursive: true)) {
+      if (e is File) total += await e.length();
+    }
+    return total;
+  }
+}
+
+/// Production fetcher: HTTP GET with a Range header for resume.
+Future<List<int>> httpVoiceFetcher(Uri url, {int offset = 0}) async {
+  final client = HttpClient();
+  try {
+    final req = await client.getUrl(url);
+    if (offset > 0) req.headers.add(HttpHeaders.rangeHeader, 'bytes=$offset-');
+    final resp = await req.close();
+    final out = <int>[];
+    await for (final chunk in resp) {
+      out.addAll(chunk);
+    }
+    return out;
+  } finally {
+    client.close();
+  }
 }

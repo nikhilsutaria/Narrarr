@@ -47,6 +47,7 @@ dependencies:
   sqlite3_flutter_libs: ^0.5.42
   audio_service: ^0.18.18
   audio_session: ^0.2.3
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:
