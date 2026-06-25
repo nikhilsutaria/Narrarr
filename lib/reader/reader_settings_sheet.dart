@@ -12,6 +12,10 @@ Future<void> showReaderSettingsSheet(
   return showModalBottomSheet(
     context: context,
     showDragHandle: true,
+    // The content (font/size/line + three dyslexia-spacing sliders + theme)
+    // is taller than the default ~half-screen cap, so allow it to size to its
+    // content and scroll on short screens instead of overflowing/clipping.
+    isScrollControlled: true,
     builder: (context) {
       var s = current;
       return StatefulBuilder(
@@ -22,7 +26,7 @@ Future<void> showReaderSettingsSheet(
           }
 
           return SafeArea(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
