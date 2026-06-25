@@ -46,6 +46,7 @@ dependencies:
   drift: ^2.31.0
   sqlite3_flutter_libs: ^0.5.42
   audio_service: ^0.18.18
+  audio_session: ^0.2.3
 
 dev_dependencies:
   flutter_test:

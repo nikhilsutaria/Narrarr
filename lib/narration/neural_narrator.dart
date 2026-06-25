@@ -291,6 +291,14 @@ class NeuralNarrator implements TtsEngine {
   }
 
   @override
+  Future<void> setVolume(double volume) async {
+    final v = volume.clamp(0.0, 1.0);
+    for (final pl in _players) {
+      await pl.setVolume(v);
+    }
+  }
+
+  @override
   Future<void> pause() async {
     // Pause the active clip in place. The chunk-playback loop stays parked on
     // the unresolved completer (the clip's onPlayerComplete won't fire while

@@ -10,6 +10,7 @@ class FakeTtsEngine implements TtsEngine {
   final List<String> spoken = [];
   Completer<void>? _current;
   bool paused = false;
+  double volume = 1.0;
 
   @override
   String get name => 'fake';
@@ -33,6 +34,9 @@ class FakeTtsEngine implements TtsEngine {
 
   @override
   void preloadNext(String text) {}
+
+  @override
+  Future<void> setVolume(double v) async => volume = v;
 
   @override
   Future<void> pause() async => paused = true;

@@ -26,6 +26,10 @@ abstract class TtsEngine {
   /// just pre-synthesize it. No-op for engines without a per-clip start cost.
   void preloadNext(String text);
 
+  /// Set output volume in [0.0, 1.0]. Used to duck under transient
+  /// interruptions (e.g. a navigation prompt) without stopping playback.
+  Future<void> setVolume(double volume);
+
   /// Pause the currently-playing utterance in place, keeping its position so
   /// [resume] can continue it. No-op if nothing is playing.
   Future<void> pause();

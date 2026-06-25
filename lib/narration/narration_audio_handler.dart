@@ -1,4 +1,5 @@
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 
 import '../sync/narration_controller.dart';
 import 'neural_narrator.dart';
@@ -59,6 +60,42 @@ class NarrationAudioHandler extends BaseAudioHandler {
   @override
   Future<void> skipToPrevious() => controller.skipSentence(-1);
 
+  // ---- audio focus / interruptions (#9) ----
+
+  static const double _duckVolume = 0.3;
+  bool _resumeAfterInterruption = false;
+
+  /// React to an audio-focus interruption (incoming call, other media, a
+  /// transient navigation prompt). Pure logic — unit-tested; wired to
+  /// `AudioSession.interruptionEventStream` in [narrationHandler].
+  Future<void> onInterruption(AudioInterruptionEvent event) async {
+    if (event.begin) {
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+          await controller.engine.setVolume(_duckVolume);
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          _resumeAfterInterruption = controller.isPlaying && !controller.isPaused;
+          await pause();
+      }
+    } else {
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+          await controller.engine.setVolume(1.0);
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          if (_resumeAfterInterruption) {
+            _resumeAfterInterruption = false;
+            await play();
+          }
+      }
+    }
+  }
+
+  /// The output route became noisy (headset unplugged / Bluetooth disconnect).
+  /// Standard behaviour: pause so audio doesn't blast from the speaker.
+  Future<void> onBecomingNoisy() => pause();
+
   /// Translate controller state into the playback state audio_service publishes
   /// to the system (notification + lock screen).
   void _broadcast() {
@@ -87,7 +124,10 @@ NarrationAudioHandler? _handler;
 /// Called by the reader the first time it needs narration — not at app launch,
 /// to keep `AudioService.init` and the engine off the cold-start path.
 Future<NarrationAudioHandler> narrationHandler() async {
-  return _handler ??= await AudioService.init(
+  final existing = _handler;
+  if (existing != null) return existing;
+
+  final handler = await AudioService.init(
     builder: () => NarrationAudioHandler(
       NarrationController(engine: NeuralNarrator()),
     ),
@@ -98,4 +138,12 @@ Future<NarrationAudioHandler> narrationHandler() async {
       androidStopForegroundOnPause: true,
     ),
   );
+
+  // Own audio focus + interruptions through audio_session (speech profile).
+  final session = await AudioSession.instance;
+  await session.configure(const AudioSessionConfiguration.speech());
+  session.interruptionEventStream.listen(handler.onInterruption);
+  session.becomingNoisyEventStream.listen((_) => handler.onBecomingNoisy());
+
+  return _handler = handler;
 }
