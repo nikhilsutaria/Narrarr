@@ -19,9 +19,22 @@ class ReadingColors extends ThemeExtension<ReadingColors> {
   /// independently of the app chrome.
   final Color sentenceHighlight;
 
-  static const _highlightYellow = Color(0x8CFFD54F); // amber 300 @ ~0.55
+  /// Warm highlighter-yellow tuned for a light reader page (dark text).
+  static const _highlightLight = Color(0x8CFFD54F); // amber 300 @ ~0.55
 
-  static const value = ReadingColors(sentenceHighlight: _highlightYellow);
+  /// Lower-alpha amber for a dark reader page (light text): keeps the band
+  /// dark enough that light text stays readable.
+  static const _highlightDark = Color(0x4DFFC107); // amber 500 @ 0.30
+
+  static const light = ReadingColors(sentenceHighlight: _highlightLight);
+  static const dark = ReadingColors(sentenceHighlight: _highlightDark);
+
+  /// Pick the highlight that matches the current reader page background.
+  static Color forReaderBrightness(Brightness b) =>
+      b == Brightness.dark ? _highlightDark : _highlightLight;
+
+  // App-chrome default (light page).
+  static const value = light;
 
   @override
   ReadingColors copyWith({Color? sentenceHighlight}) =>
@@ -42,9 +55,15 @@ class ReadingColors extends ThemeExtension<ReadingColors> {
 /// chrome doesn't compete with the page.
 const _seed = Color(0xFF8D6E63); // warm brown (Material brown 400)
 
+/// Atkinson Hyperlegible — bundled dyslexia-/low-vision-friendly family, used
+/// for all app UI text (the reader page font is chosen separately via
+/// EPUBPreferences).
+const appFontFamily = 'Atkinson Hyperlegible';
+
 ThemeData _theme(Brightness brightness) => ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: _seed, brightness: brightness),
       useMaterial3: true,
+      fontFamily: appFontFamily,
       extensions: const [ReadingColors.value],
     );
 

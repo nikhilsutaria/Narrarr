@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import 'book.dart';
 
@@ -73,10 +72,4 @@ class JsonLibraryRepository implements LibraryRepository {
     books[i] = books[i].copyWith(lastLocatorJson: locatorJson);
     await _save(books);
   }
-}
-
-/// Default app repository rooted at app-support storage.
-Future<LibraryRepository> openAppLibrary() async {
-  final support = await getApplicationSupportDirectory();
-  return JsonLibraryRepository(Directory(p.join(support.path, 'library')));
 }

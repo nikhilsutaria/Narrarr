@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../reader/reader_screen.dart';
 import 'book.dart';
+import 'drift/drift_library_repository.dart';
 import 'import_service.dart';
 import 'library_repository.dart';
 
@@ -111,9 +112,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void _showSnack(String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
-  void _open(Book book) => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ReaderScreen(book: book)),
-      );
+  Future<void> _open(Book book) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReaderScreen(book: book, repository: _repo),
+      ),
+    );
+    // Reading position may have changed; refresh so resume state is current.
+    await _refresh();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +166,9 @@ class _BookTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: _Cover(book: book, scheme: scheme),
+      // Cover art is decorative; the title/author already convey the book to
+      // screen readers.
+      leading: ExcludeSemantics(child: _Cover(book: book, scheme: scheme)),
       title: Text(book.title, maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: book.author != null ? Text(book.author!) : null,
       onTap: onTap,
