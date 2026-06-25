@@ -7,7 +7,7 @@ import 'package:flutter_readium/flutter_readium.dart';
 
 import '../library/book.dart';
 import '../library/library_repository.dart';
-import '../narration/neural_narrator.dart';
+import '../narration/narration_audio_handler.dart';
 import '../sync/narration_controller.dart';
 import '../ui/theme.dart';
 import 'book_text.dart';
@@ -40,7 +40,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   final _readium = FlutterReadium();
   final _settingsStore = ReaderSettingsStore();
-  late final NarrationController _narration;
+
+  /// Process-wide narration handler (owns the controller + neural engine).
+  /// Resolved in [_init]; this reader attaches its chapter + highlight callback.
+  NarrationAudioHandler? _handler;
+  NarrationController? get _narration => _handler?.controller;
 
   ReaderSettings _settings = ReaderSettings();
   Publication? _pub;
@@ -57,18 +61,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void initState() {
     super.initState();
-    _narration = NarrationController(engine: NeuralNarrator())
-      ..onHighlight = _highlightSentence;
-    _narration.addListener(_onNarrationChanged);
     _init();
   }
 
-  void _onNarrationChanged() => setState(() {});
+  void _onNarrationChanged() {
+    if (mounted) setState(() {});
+  }
 
   Future<void> _init() async {
     _settings = await _settingsStore.load();
     // Apply as defaults before opening so the first render uses them.
     _readium.setDefaultPreferences(_settings.toEpubPreferences());
+    _handler = await narrationHandler();
+    _handler!.controller.addListener(_onNarrationChanged);
     await _open();
   }
 
@@ -96,7 +101,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
       // Persist reading position (debounced) as the reader location changes.
       _locSub = _readium.onTextLocatorChanged.listen(_onLocatorChanged);
 
-      _narration.setSentences(chapter.sentences);
+      _handler!.loadChapter(
+        bookId: widget.book.id,
+        title: widget.book.title,
+        author: widget.book.author,
+        sentences: chapter.sentences,
+        onHighlight: _highlightSentence,
+      );
       setState(() {
         _pub = pub;
         _chapterHref = link.href;
@@ -131,10 +142,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Locator _sentenceLocator(int index) => Locator(
         href: _chapterHref,
         type: 'application/xhtml+xml',
-        text: LocatorText(highlight: _narration.sentenceTextAt(index)),
+        text: LocatorText(highlight: _narration!.sentenceTextAt(index)),
       );
 
   Future<void> _highlightSentence(int index) async {
+    if (!mounted) return;
     final loc = _sentenceLocator(index);
     await _readium.applyDecorations(_highlightGroup, [
       ReaderDecoration(
@@ -166,20 +178,34 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // ---- playback ----
 
-  Future<void> _togglePlay() async {
-    if (_narration.isPlaying) {
-      await _narration.stop();
-      return;
-    }
+  /// First press: lazily load the neural voice model, then start. The engine
+  /// model load is deferred to here (not app/reader launch) to keep startup
+  /// light — see the Phase-1 cold-start note.
+  Future<void> _startNarration() async {
+    final h = _handler;
+    if (h == null) return;
     if (!_narratorReady) {
       setState(() => _preparingNarrator = true);
-      await _narration.engine.init();
+      await h.controller.engine.init();
+      if (!mounted) return;
       setState(() {
         _narratorReady = true;
         _preparingNarrator = false;
       });
     }
-    await _narration.play();
+    await h.play();
+  }
+
+  Future<void> _playPause() async {
+    final c = _narration;
+    if (c == null) return;
+    if (c.isPaused) {
+      await _handler!.play(); // resume
+    } else if (c.isPlaying) {
+      await _handler!.pause();
+    } else {
+      await _startNarration();
+    }
   }
 
   @override
@@ -187,8 +213,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _saveTimer?.cancel();
     _flushLocator();
     _locSub?.cancel();
-    _narration.removeListener(_onNarrationChanged);
-    _narration.dispose();
+    // The handler is process-wide; don't dispose it. Just detach this reader
+    // (clears the highlight callback) and stop audio when leaving the reader.
+    _handler?.controller.removeListener(_onNarrationChanged);
+    _handler?.endSession();
     super.dispose();
   }
 
@@ -217,25 +245,66 @@ class _ReaderScreenState extends State<ReaderScreen> {
         initialLocator: _initialLocator,
         loadingWidget: const Center(child: CircularProgressIndicator()),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _narration.sentenceCount == 0 ? null : _togglePlay,
-        icon: _preparingNarrator
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(_narration.isPlaying ? Icons.stop : Icons.play_arrow),
-        label: Text(
-          _preparingNarrator
-              ? 'Loading voice…'
-              : _narration.isPlaying
-                  ? 'Stop'
-                  : 'Listen',
-          semanticsLabel: _narration.isPlaying
-              ? 'Stop narration'
-              : 'Listen — read this chapter aloud',
-        ),
+      // When narration is active, the bottom bar carries the transport controls;
+      // otherwise a single "Listen" FAB starts it.
+      bottomNavigationBar: _active ? _buildNarrationBar(context) : null,
+      floatingActionButton: _active
+          ? null
+          : FloatingActionButton.extended(
+              onPressed:
+                  (_narration?.sentenceCount ?? 0) == 0 ? null : _playPause,
+              icon: _preparingNarrator
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.play_arrow),
+              label: Text(
+                _preparingNarrator ? 'Loading voice…' : 'Listen',
+                semanticsLabel: 'Listen — read this chapter aloud',
+              ),
+            ),
+    );
+  }
+
+  /// Narration is "active" while playing or paused (the session is live).
+  bool get _active => _narration?.isPlaying ?? false;
+
+  /// Transport bar: previous sentence / play-pause / next sentence / stop.
+  Widget _buildNarrationBar(BuildContext context) {
+    final c = _narration!;
+    final paused = c.isPaused;
+    return BottomAppBar(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          IconButton(
+            tooltip: 'Previous sentence',
+            iconSize: 32,
+            onPressed: () => _handler!.skipToPrevious(),
+            icon: const Icon(Icons.skip_previous),
+          ),
+          IconButton.filled(
+            tooltip: paused ? 'Resume' : 'Pause',
+            iconSize: 32,
+            onPressed: _playPause,
+            icon: Icon(paused ? Icons.play_arrow : Icons.pause,
+                semanticLabel: paused ? 'Resume narration' : 'Pause narration'),
+          ),
+          IconButton(
+            tooltip: 'Next sentence',
+            iconSize: 32,
+            onPressed: () => _handler!.skipToNext(),
+            icon: const Icon(Icons.skip_next),
+          ),
+          IconButton(
+            tooltip: 'Stop',
+            iconSize: 32,
+            onPressed: () => _handler!.stop(),
+            icon: const Icon(Icons.stop, semanticLabel: 'Stop narration'),
+          ),
+        ],
       ),
     );
   }

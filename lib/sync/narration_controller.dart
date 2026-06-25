@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../narration/tts_engine.dart';
@@ -25,10 +27,15 @@ class NarrationController extends ChangeNotifier {
   List<String> _sentences = const [];
   int _index = 0;
   bool _playing = false;
+  bool _paused = false;
   int _token = 0;
 
   int get index => _index;
   bool get isPlaying => _playing;
+
+  /// True while playback is paused (still the active session, just not emitting
+  /// audio). Distinct from [isPlaying], which stays true across a pause.
+  bool get isPaused => _paused;
   int get sentenceCount => _sentences.length;
   String sentenceTextAt(int index) => _sentences[index];
 
@@ -43,6 +50,7 @@ class NarrationController extends ChangeNotifier {
     if (_sentences.isEmpty) return;
     final token = ++_token;
     _playing = true;
+    _paused = false;
     notifyListeners();
 
     for (var i = (from ?? _index).clamp(0, _sentences.length - 1);
@@ -72,9 +80,43 @@ class NarrationController extends ChangeNotifier {
   /// Jump to [index] and play from there.
   Future<void> playFrom(int index) => play(from: index);
 
+  /// Pause playback in place. The session stays alive ([isPlaying] remains
+  /// true); [resumeNarration] continues the same utterance.
+  Future<void> pauseNarration() async {
+    if (!_playing || _paused) return;
+    _paused = true;
+    await engine.pause();
+    notifyListeners();
+  }
+
+  /// Resume after [pauseNarration].
+  Future<void> resumeNarration() async {
+    if (!_paused) return;
+    _paused = false;
+    await engine.resume();
+    notifyListeners();
+  }
+
+  /// Move [delta] sentences from the current index. If playing, restart from the
+  /// new index; if idle (or paused), just reposition.
+  Future<void> skipSentence(int delta) async {
+    if (_sentences.isEmpty) return;
+    final wasPlaying = _playing && !_paused;
+    final target = (_index + delta).clamp(0, _sentences.length - 1);
+    if (wasPlaying) {
+      await stop(); // bumps _token (supersedes the running loop) and halts audio
+      unawaited(play(from: target));
+    } else {
+      _index = target;
+      _paused = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> stop() async {
     _token++;
     _playing = false;
+    _paused = false;
     await engine.stop();
     notifyListeners();
   }

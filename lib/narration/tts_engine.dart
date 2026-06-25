@@ -26,6 +26,13 @@ abstract class TtsEngine {
   /// just pre-synthesize it. No-op for engines without a per-clip start cost.
   void preloadNext(String text);
 
+  /// Pause the currently-playing utterance in place, keeping its position so
+  /// [resume] can continue it. No-op if nothing is playing.
+  Future<void> pause();
+
+  /// Resume an utterance paused by [pause]. No-op if not paused.
+  Future<void> resume();
+
   /// Stop any current or pending speech immediately and unblock a pending
   /// [speak] future.
   Future<void> stop();
