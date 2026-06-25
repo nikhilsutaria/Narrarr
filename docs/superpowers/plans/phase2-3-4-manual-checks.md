@@ -16,7 +16,16 @@ Driven via Maestro on `emulator-5554`; functional items below confirmed. Audio q
 
 **Verified on emulator:** book persistence + restored reading position; reader renders EPUB; Listen starts narration; in-app transport bar (prev/play-pause/next/stop); Now-Playing notification w/ title+author; notification pause ⇄ in-app sync; resume; stop dismisses bar; **tap-to-seek**; **skip-next/prev**; sentence highlight + advance; onboarding once; Settings → Voices/Accessibility/About; Voices catalog (amy-low Active + 2 downloadable w/ sizes); dyslexia spacing sliders apply live; Atkinson Hyperlegible default.
 
-**Still pending (your ears / a real device):** audio quality + gapless + no-drift-over-chapter; pause/resume *same-sentence* fidelity; audio focus (call / other app / duck / headphone unplug); real lock-screen + long backgrounded session; voice download over network + airplane-mode offline (also blocked by placeholder catalog URLs / null checksums); TalkBack double-speak + focus order; thermal/battery/latency/RTF on mid-range Android; cross-chapter narration; messy-EPUB skip of footnotes/captions; empty-library + bad-file import states.
+**Still pending (your ears / a real device):** audio quality + gapless + no-drift-over-chapter; pause/resume *same-sentence* fidelity; audio focus (call / other app / duck / headphone unplug); real lock-screen + long backgrounded session; TalkBack double-speak + focus order; thermal/battery/latency/RTF on mid-range Android; cross-chapter narration; messy-EPUB skip of footnotes/captions; empty-library + bad-file import states.
+
+## Session 2 — voice download wired & verified (2026-06-26)
+
+The pre-ship catalog gap is **resolved**: downloads now point at the sherpa-onnx `tts-models` release tarballs (`.tar.bz2`), with real SHA-256 checksums and sizes measured from the assets. The extractor decompresses bzip2 transparently (`extractVoiceTar` detects the `BZh` magic). Verified end-to-end on the API-32 emulator: **Download Ryan (medium) over network → SHA-256 verify → bz2 decompress → extract 392 files → "Use" activates it (persisted) → reader re-inits on the downloaded model → narrates with synced highlight, no errors.** tap-to-seek and skip-next/prev also confirmed working (manual).
+
+- ✅ Voices lists amy-low (bundled, Active) + 2 downloadable with sizes.
+- ✅ Download over network → installed → **Use** makes it Active.
+- ⚠️ **Polish:** download fetches the whole 64 MB into memory and runs SHA-256 + bzip2 decode on the **UI isolate** — visibly janks ("Skipped frames", frozen spinner during extract). Move to a background isolate / streamed hashing before shipping. Functionally correct.
+- ⏳ Still device-only: airplane-mode offline *after* download (on-device synth makes this near-certain, but untested); long-press delete; interrupted-download error + resume-from-`.part`.
 
 ---
 
@@ -74,7 +83,7 @@ Driven via Maestro on `emulator-5554`; functional items below confirmed. Audio q
 - [ ] After download, **airplane mode** → the downloaded voice still narrates fully offline.
 - [ ] **Long-press** a downloaded (non-bundled) voice → **deletes** it; if it was active, the app falls back to amy-low.
 - [ ] A **failed/interrupted download** shows an inline error and **Retry**; retry **resumes** from the partial `.part` file rather than restarting.
-- [ ] ⚠️ **Catalog wiring (pre-ship):** the download URLs in `voice_catalog.dart` are Hugging Face `.onnx` placeholders and `sha256` is `null` (downloads proceed **unverified**). Before shipping: point each `url` at a packaged `.tar` (model + tokens + espeak-ng-data, like the bundled amy tar) and fill the real `sha256` so integrity verification is active. The download→verify→extract **mechanism** is already unit-tested with a checksummed fixture.
+- [x] ✅ **Catalog wiring (RESOLVED — see Session 2):** download URLs now point at the sherpa-onnx `tts-models` release `.tar.bz2` bundles with real SHA-256 checksums and measured sizes; the extractor decompresses bzip2 transparently. Verified end-to-end on the emulator (download → verify → extract → activate → narrate). Remaining polish: the download/verify/decode runs on the UI isolate and janks — move off the main isolate before shipping.
 
 ### Accessibility (challenge #12)
 - [ ] With **TalkBack ON**, start narration → the screen reader does **not** also read the page aloud over the app's voice (book content is excluded from the a11y tree while self-narrating).

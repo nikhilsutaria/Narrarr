@@ -72,10 +72,14 @@ class BundledVoiceManager implements VoiceManager {
   }
 }
 
-/// Extract a voice `.tar` (model + tokens + espeak-ng-data) into [support].
-/// Shared by [BundledVoiceManager] and [DownloadingVoiceManager].
+/// Extract a voice archive (model + tokens + espeak-ng-data) into [support].
+/// Shared by [BundledVoiceManager] and [DownloadingVoiceManager]. Accepts a
+/// plain `.tar` (the bundled voice) or a bzip2-compressed `.tar.bz2` (the
+/// sherpa-onnx download format), detected by the bzip2 magic header.
 Future<void> extractVoiceTar(Uint8List bytes, Directory support) async {
-  for (final entry in TarDecoder().decodeBytes(bytes)) {
+  final List<int> tarBytes =
+      _isBzip2(bytes) ? BZip2Decoder().decodeBytes(bytes) : bytes;
+  for (final entry in TarDecoder().decodeBytes(tarBytes)) {
     final outPath = p.join(support.path, entry.name);
     if (entry.isFile) {
       await Directory(p.dirname(outPath)).create(recursive: true);
@@ -85,6 +89,10 @@ Future<void> extractVoiceTar(Uint8List bytes, Directory support) async {
     }
   }
 }
+
+/// Whether [b] begins with the bzip2 magic header (`BZh`).
+bool _isBzip2(List<int> b) =>
+    b.length >= 3 && b[0] == 0x42 && b[1] == 0x5A && b[2] == 0x68;
 
 Future<Uint8List> _rootBundleLoad(String asset) async {
   final data = await rootBundle.load(asset);

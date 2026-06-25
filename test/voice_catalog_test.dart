@@ -14,6 +14,18 @@ void main() {
     expect(VoiceCatalog.ryanMedium.sizeBytes, greaterThan(0));
   });
 
+  test('downloadable voices are shippable: packaged tar + integrity checksum',
+      () {
+    // Guards against regressing to the unverified placeholder URLs: each
+    // download must point at a packaged tar (not a bare .onnx) and carry a
+    // SHA-256 so the downloader actually verifies integrity.
+    for (final v in [VoiceCatalog.ryanMedium, VoiceCatalog.amyMedium]) {
+      expect(v.url, endsWith('.tar.bz2'), reason: '${v.id} must be a tar');
+      expect(v.sha256, isNotNull, reason: '${v.id} must have a checksum');
+      expect(v.sha256!.length, 64, reason: '${v.id} sha256 must be 64 hex');
+    }
+  });
+
   test('all contains the catalog and byId resolves', () {
     expect(VoiceCatalog.all, contains(VoiceCatalog.amyLow));
     expect(VoiceCatalog.byId('vits-piper-en_US-amy-low'), VoiceCatalog.amyLow);

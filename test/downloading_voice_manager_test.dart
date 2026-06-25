@@ -76,6 +76,30 @@ void main() {
     expect(await m.isInstalled(v), isFalse);
   });
 
+  test('handles a bz2-compressed tar (sherpa-onnx download format)', () async {
+    // sherpa-onnx voice releases ship as .tar.bz2; the downloader must
+    // decompress before untarring. Checksum is over the downloaded (bz2) bytes.
+    final archive = Archive()
+      ..addFile(ArchiveFile('voiceZ/voiceZ.onnx', 4, [1, 2, 3, 4]));
+    final tar = Uint8List.fromList(TarEncoder().encode(archive));
+    final bz2 = Uint8List.fromList(BZip2Encoder().encode(tar));
+    final v = VoiceConfig(
+      id: 'voiceZ',
+      displayName: 'Voice Z',
+      modelFile: 'voiceZ.onnx',
+      url: 'https://example.test/voiceZ.tar.bz2',
+      sha256: sha256.convert(bz2).toString(),
+      sizeBytes: bz2.length,
+    );
+    final m = DownloadingVoiceManager(
+      baseDir: tmp,
+      fetch: (uri, {offset = 0}) async => bz2.sublist(offset),
+    );
+    final dir = await m.ensureAvailable(v);
+    expect(File(p.join(dir, 'voiceZ.onnx')).existsSync(), isTrue);
+    expect(await m.isInstalled(v), isTrue);
+  });
+
   test('bundled voice delegates to BundledVoiceManager', () async {
     final (bytes, _) =
         fakeVoiceTar('vits-piper-en_US-amy-low', 'en_US-amy-low.onnx');
