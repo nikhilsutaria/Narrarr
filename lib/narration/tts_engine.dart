@@ -45,6 +45,12 @@ abstract class TtsEngine {
   /// [speak] future.
   Future<void> stop();
 
+  /// Switch the active voice if this engine supports voices. The argument is an
+  /// opaque voice descriptor (a `VoiceConfig` for the neural engine); engines
+  /// that don't support voices treat it as a no-op. Kept as [Object] so this
+  /// interface stays free of any engine-specific imports.
+  Future<void> setVoiceIfNeeded(Object voice) async {}
+
   /// Release native resources.
   Future<void> dispose();
 }

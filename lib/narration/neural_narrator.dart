@@ -280,6 +280,11 @@ class NeuralNarrator implements TtsEngine {
   }
 
   @override
+  Future<void> setVoiceIfNeeded(Object voice) async {
+    if (voice is VoiceConfig) await setVoice(voice);
+  }
+
+  @override
   Future<void> setVolume(double volume) async {
     final v = volume.clamp(0.0, 1.0);
     for (final pl in _players) {

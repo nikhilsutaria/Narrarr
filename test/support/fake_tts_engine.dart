@@ -53,6 +53,9 @@ class FakeTtsEngine implements TtsEngine {
   void preloadNext(String text) {}
 
   @override
+  Future<void> setVoiceIfNeeded(Object voice) async {}
+
+  @override
   Future<void> setVolume(double v) async => volume = v;
 
   @override

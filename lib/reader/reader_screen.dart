@@ -9,6 +9,8 @@ import '../library/book.dart';
 import '../library/drift/library_database.dart';
 import '../library/library_repository.dart';
 import '../narration/narration_audio_handler.dart';
+import '../narration/voice_catalog.dart';
+import '../narration/voice_settings.dart';
 import '../sync/narration_controller.dart';
 import '../sync/sentence_match.dart';
 import '../sync/sentence_timing.dart';
@@ -65,8 +67,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String _chapterHref = '';
 
   TimingRepository? _timings;
-  // The bundled offline default; Phase 4 makes this user-selectable.
-  static const _voiceId = 'vits-piper-en_US-amy-low';
+  // The active voice, loaded from VoiceSettings in [_init] (defaults to the
+  // bundled amy). Keys the timing cache and drives engine voice selection.
+  String _voiceId = VoiceCatalog.amyLow.id;
 
   /// Whole book, segmented per chapter in reading order; [_spineIndex] is the
   /// chapter currently being narrated. Drives cross-chapter playback.
@@ -98,6 +101,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _handler = await narrationHandler();
     _handler!.controller.addListener(_onNarrationChanged);
     _timings = widget.timingRepository ?? TimingRepository(LibraryDatabase());
+    // Load the user's active voice and apply it to the engine before opening.
+    final vs = await VoiceSettingsStore().load();
+    _voiceId = vs.activeVoiceId;
+    final selected = VoiceCatalog.byId(_voiceId) ?? VoiceCatalog.amyLow;
+    await _handler!.controller.engine.setVoiceIfNeeded(selected);
     await _open();
   }
 
