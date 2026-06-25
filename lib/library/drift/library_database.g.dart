@@ -524,15 +524,455 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
   }
 }
 
+class $SentenceTimingsTable extends SentenceTimings
+    with TableInfo<$SentenceTimingsTable, SentenceTimingRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SentenceTimingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _chapterHrefMeta = const VerificationMeta(
+    'chapterHref',
+  );
+  @override
+  late final GeneratedColumn<String> chapterHref = GeneratedColumn<String>(
+    'chapter_href',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _voiceIdMeta = const VerificationMeta(
+    'voiceId',
+  );
+  @override
+  late final GeneratedColumn<String> voiceId = GeneratedColumn<String>(
+    'voice_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sentenceIndexMeta = const VerificationMeta(
+    'sentenceIndex',
+  );
+  @override
+  late final GeneratedColumn<int> sentenceIndex = GeneratedColumn<int>(
+    'sentence_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startMsMeta = const VerificationMeta(
+    'startMs',
+  );
+  @override
+  late final GeneratedColumn<int> startMs = GeneratedColumn<int>(
+    'start_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationMsMeta = const VerificationMeta(
+    'durationMs',
+  );
+  @override
+  late final GeneratedColumn<int> durationMs = GeneratedColumn<int>(
+    'duration_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    bookId,
+    chapterHref,
+    voiceId,
+    sentenceIndex,
+    startMs,
+    durationMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sentence_timings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SentenceTimingRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('chapter_href')) {
+      context.handle(
+        _chapterHrefMeta,
+        chapterHref.isAcceptableOrUnknown(
+          data['chapter_href']!,
+          _chapterHrefMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_chapterHrefMeta);
+    }
+    if (data.containsKey('voice_id')) {
+      context.handle(
+        _voiceIdMeta,
+        voiceId.isAcceptableOrUnknown(data['voice_id']!, _voiceIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_voiceIdMeta);
+    }
+    if (data.containsKey('sentence_index')) {
+      context.handle(
+        _sentenceIndexMeta,
+        sentenceIndex.isAcceptableOrUnknown(
+          data['sentence_index']!,
+          _sentenceIndexMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_sentenceIndexMeta);
+    }
+    if (data.containsKey('start_ms')) {
+      context.handle(
+        _startMsMeta,
+        startMs.isAcceptableOrUnknown(data['start_ms']!, _startMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startMsMeta);
+    }
+    if (data.containsKey('duration_ms')) {
+      context.handle(
+        _durationMsMeta,
+        durationMs.isAcceptableOrUnknown(data['duration_ms']!, _durationMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_durationMsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {
+    bookId,
+    chapterHref,
+    voiceId,
+    sentenceIndex,
+  };
+  @override
+  SentenceTimingRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SentenceTimingRow(
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      )!,
+      chapterHref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}chapter_href'],
+      )!,
+      voiceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}voice_id'],
+      )!,
+      sentenceIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sentence_index'],
+      )!,
+      startMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_ms'],
+      )!,
+      durationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $SentenceTimingsTable createAlias(String alias) {
+    return $SentenceTimingsTable(attachedDatabase, alias);
+  }
+}
+
+class SentenceTimingRow extends DataClass
+    implements Insertable<SentenceTimingRow> {
+  final String bookId;
+  final String chapterHref;
+  final String voiceId;
+  final int sentenceIndex;
+  final int startMs;
+  final int durationMs;
+  const SentenceTimingRow({
+    required this.bookId,
+    required this.chapterHref,
+    required this.voiceId,
+    required this.sentenceIndex,
+    required this.startMs,
+    required this.durationMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['book_id'] = Variable<String>(bookId);
+    map['chapter_href'] = Variable<String>(chapterHref);
+    map['voice_id'] = Variable<String>(voiceId);
+    map['sentence_index'] = Variable<int>(sentenceIndex);
+    map['start_ms'] = Variable<int>(startMs);
+    map['duration_ms'] = Variable<int>(durationMs);
+    return map;
+  }
+
+  SentenceTimingsCompanion toCompanion(bool nullToAbsent) {
+    return SentenceTimingsCompanion(
+      bookId: Value(bookId),
+      chapterHref: Value(chapterHref),
+      voiceId: Value(voiceId),
+      sentenceIndex: Value(sentenceIndex),
+      startMs: Value(startMs),
+      durationMs: Value(durationMs),
+    );
+  }
+
+  factory SentenceTimingRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SentenceTimingRow(
+      bookId: serializer.fromJson<String>(json['bookId']),
+      chapterHref: serializer.fromJson<String>(json['chapterHref']),
+      voiceId: serializer.fromJson<String>(json['voiceId']),
+      sentenceIndex: serializer.fromJson<int>(json['sentenceIndex']),
+      startMs: serializer.fromJson<int>(json['startMs']),
+      durationMs: serializer.fromJson<int>(json['durationMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'bookId': serializer.toJson<String>(bookId),
+      'chapterHref': serializer.toJson<String>(chapterHref),
+      'voiceId': serializer.toJson<String>(voiceId),
+      'sentenceIndex': serializer.toJson<int>(sentenceIndex),
+      'startMs': serializer.toJson<int>(startMs),
+      'durationMs': serializer.toJson<int>(durationMs),
+    };
+  }
+
+  SentenceTimingRow copyWith({
+    String? bookId,
+    String? chapterHref,
+    String? voiceId,
+    int? sentenceIndex,
+    int? startMs,
+    int? durationMs,
+  }) => SentenceTimingRow(
+    bookId: bookId ?? this.bookId,
+    chapterHref: chapterHref ?? this.chapterHref,
+    voiceId: voiceId ?? this.voiceId,
+    sentenceIndex: sentenceIndex ?? this.sentenceIndex,
+    startMs: startMs ?? this.startMs,
+    durationMs: durationMs ?? this.durationMs,
+  );
+  SentenceTimingRow copyWithCompanion(SentenceTimingsCompanion data) {
+    return SentenceTimingRow(
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      chapterHref: data.chapterHref.present
+          ? data.chapterHref.value
+          : this.chapterHref,
+      voiceId: data.voiceId.present ? data.voiceId.value : this.voiceId,
+      sentenceIndex: data.sentenceIndex.present
+          ? data.sentenceIndex.value
+          : this.sentenceIndex,
+      startMs: data.startMs.present ? data.startMs.value : this.startMs,
+      durationMs: data.durationMs.present
+          ? data.durationMs.value
+          : this.durationMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SentenceTimingRow(')
+          ..write('bookId: $bookId, ')
+          ..write('chapterHref: $chapterHref, ')
+          ..write('voiceId: $voiceId, ')
+          ..write('sentenceIndex: $sentenceIndex, ')
+          ..write('startMs: $startMs, ')
+          ..write('durationMs: $durationMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    bookId,
+    chapterHref,
+    voiceId,
+    sentenceIndex,
+    startMs,
+    durationMs,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SentenceTimingRow &&
+          other.bookId == this.bookId &&
+          other.chapterHref == this.chapterHref &&
+          other.voiceId == this.voiceId &&
+          other.sentenceIndex == this.sentenceIndex &&
+          other.startMs == this.startMs &&
+          other.durationMs == this.durationMs);
+}
+
+class SentenceTimingsCompanion extends UpdateCompanion<SentenceTimingRow> {
+  final Value<String> bookId;
+  final Value<String> chapterHref;
+  final Value<String> voiceId;
+  final Value<int> sentenceIndex;
+  final Value<int> startMs;
+  final Value<int> durationMs;
+  final Value<int> rowid;
+  const SentenceTimingsCompanion({
+    this.bookId = const Value.absent(),
+    this.chapterHref = const Value.absent(),
+    this.voiceId = const Value.absent(),
+    this.sentenceIndex = const Value.absent(),
+    this.startMs = const Value.absent(),
+    this.durationMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SentenceTimingsCompanion.insert({
+    required String bookId,
+    required String chapterHref,
+    required String voiceId,
+    required int sentenceIndex,
+    required int startMs,
+    required int durationMs,
+    this.rowid = const Value.absent(),
+  }) : bookId = Value(bookId),
+       chapterHref = Value(chapterHref),
+       voiceId = Value(voiceId),
+       sentenceIndex = Value(sentenceIndex),
+       startMs = Value(startMs),
+       durationMs = Value(durationMs);
+  static Insertable<SentenceTimingRow> custom({
+    Expression<String>? bookId,
+    Expression<String>? chapterHref,
+    Expression<String>? voiceId,
+    Expression<int>? sentenceIndex,
+    Expression<int>? startMs,
+    Expression<int>? durationMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (bookId != null) 'book_id': bookId,
+      if (chapterHref != null) 'chapter_href': chapterHref,
+      if (voiceId != null) 'voice_id': voiceId,
+      if (sentenceIndex != null) 'sentence_index': sentenceIndex,
+      if (startMs != null) 'start_ms': startMs,
+      if (durationMs != null) 'duration_ms': durationMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SentenceTimingsCompanion copyWith({
+    Value<String>? bookId,
+    Value<String>? chapterHref,
+    Value<String>? voiceId,
+    Value<int>? sentenceIndex,
+    Value<int>? startMs,
+    Value<int>? durationMs,
+    Value<int>? rowid,
+  }) {
+    return SentenceTimingsCompanion(
+      bookId: bookId ?? this.bookId,
+      chapterHref: chapterHref ?? this.chapterHref,
+      voiceId: voiceId ?? this.voiceId,
+      sentenceIndex: sentenceIndex ?? this.sentenceIndex,
+      startMs: startMs ?? this.startMs,
+      durationMs: durationMs ?? this.durationMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (chapterHref.present) {
+      map['chapter_href'] = Variable<String>(chapterHref.value);
+    }
+    if (voiceId.present) {
+      map['voice_id'] = Variable<String>(voiceId.value);
+    }
+    if (sentenceIndex.present) {
+      map['sentence_index'] = Variable<int>(sentenceIndex.value);
+    }
+    if (startMs.present) {
+      map['start_ms'] = Variable<int>(startMs.value);
+    }
+    if (durationMs.present) {
+      map['duration_ms'] = Variable<int>(durationMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SentenceTimingsCompanion(')
+          ..write('bookId: $bookId, ')
+          ..write('chapterHref: $chapterHref, ')
+          ..write('voiceId: $voiceId, ')
+          ..write('sentenceIndex: $sentenceIndex, ')
+          ..write('startMs: $startMs, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$LibraryDatabase extends GeneratedDatabase {
   _$LibraryDatabase(QueryExecutor e) : super(e);
   $LibraryDatabaseManager get managers => $LibraryDatabaseManager(this);
   late final $BooksTable books = $BooksTable(this);
+  late final $SentenceTimingsTable sentenceTimings = $SentenceTimingsTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [books];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [books, sentenceTimings];
 }
 
 typedef $$BooksTableCreateCompanionBuilder =
@@ -790,10 +1230,247 @@ typedef $$BooksTableProcessedTableManager =
       BookRow,
       PrefetchHooks Function()
     >;
+typedef $$SentenceTimingsTableCreateCompanionBuilder =
+    SentenceTimingsCompanion Function({
+      required String bookId,
+      required String chapterHref,
+      required String voiceId,
+      required int sentenceIndex,
+      required int startMs,
+      required int durationMs,
+      Value<int> rowid,
+    });
+typedef $$SentenceTimingsTableUpdateCompanionBuilder =
+    SentenceTimingsCompanion Function({
+      Value<String> bookId,
+      Value<String> chapterHref,
+      Value<String> voiceId,
+      Value<int> sentenceIndex,
+      Value<int> startMs,
+      Value<int> durationMs,
+      Value<int> rowid,
+    });
+
+class $$SentenceTimingsTableFilterComposer
+    extends Composer<_$LibraryDatabase, $SentenceTimingsTable> {
+  $$SentenceTimingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get chapterHref => $composableBuilder(
+    column: $table.chapterHref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voiceId => $composableBuilder(
+    column: $table.voiceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sentenceIndex => $composableBuilder(
+    column: $table.sentenceIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SentenceTimingsTableOrderingComposer
+    extends Composer<_$LibraryDatabase, $SentenceTimingsTable> {
+  $$SentenceTimingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get chapterHref => $composableBuilder(
+    column: $table.chapterHref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get voiceId => $composableBuilder(
+    column: $table.voiceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sentenceIndex => $composableBuilder(
+    column: $table.sentenceIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SentenceTimingsTableAnnotationComposer
+    extends Composer<_$LibraryDatabase, $SentenceTimingsTable> {
+  $$SentenceTimingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<String> get chapterHref => $composableBuilder(
+    column: $table.chapterHref,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get voiceId =>
+      $composableBuilder(column: $table.voiceId, builder: (column) => column);
+
+  GeneratedColumn<int> get sentenceIndex => $composableBuilder(
+    column: $table.sentenceIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get startMs =>
+      $composableBuilder(column: $table.startMs, builder: (column) => column);
+
+  GeneratedColumn<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => column,
+  );
+}
+
+class $$SentenceTimingsTableTableManager
+    extends
+        RootTableManager<
+          _$LibraryDatabase,
+          $SentenceTimingsTable,
+          SentenceTimingRow,
+          $$SentenceTimingsTableFilterComposer,
+          $$SentenceTimingsTableOrderingComposer,
+          $$SentenceTimingsTableAnnotationComposer,
+          $$SentenceTimingsTableCreateCompanionBuilder,
+          $$SentenceTimingsTableUpdateCompanionBuilder,
+          (
+            SentenceTimingRow,
+            BaseReferences<
+              _$LibraryDatabase,
+              $SentenceTimingsTable,
+              SentenceTimingRow
+            >,
+          ),
+          SentenceTimingRow,
+          PrefetchHooks Function()
+        > {
+  $$SentenceTimingsTableTableManager(
+    _$LibraryDatabase db,
+    $SentenceTimingsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SentenceTimingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SentenceTimingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SentenceTimingsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> bookId = const Value.absent(),
+                Value<String> chapterHref = const Value.absent(),
+                Value<String> voiceId = const Value.absent(),
+                Value<int> sentenceIndex = const Value.absent(),
+                Value<int> startMs = const Value.absent(),
+                Value<int> durationMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SentenceTimingsCompanion(
+                bookId: bookId,
+                chapterHref: chapterHref,
+                voiceId: voiceId,
+                sentenceIndex: sentenceIndex,
+                startMs: startMs,
+                durationMs: durationMs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String bookId,
+                required String chapterHref,
+                required String voiceId,
+                required int sentenceIndex,
+                required int startMs,
+                required int durationMs,
+                Value<int> rowid = const Value.absent(),
+              }) => SentenceTimingsCompanion.insert(
+                bookId: bookId,
+                chapterHref: chapterHref,
+                voiceId: voiceId,
+                sentenceIndex: sentenceIndex,
+                startMs: startMs,
+                durationMs: durationMs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SentenceTimingsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LibraryDatabase,
+      $SentenceTimingsTable,
+      SentenceTimingRow,
+      $$SentenceTimingsTableFilterComposer,
+      $$SentenceTimingsTableOrderingComposer,
+      $$SentenceTimingsTableAnnotationComposer,
+      $$SentenceTimingsTableCreateCompanionBuilder,
+      $$SentenceTimingsTableUpdateCompanionBuilder,
+      (
+        SentenceTimingRow,
+        BaseReferences<
+          _$LibraryDatabase,
+          $SentenceTimingsTable,
+          SentenceTimingRow
+        >,
+      ),
+      SentenceTimingRow,
+      PrefetchHooks Function()
+    >;
 
 class $LibraryDatabaseManager {
   final _$LibraryDatabase _db;
   $LibraryDatabaseManager(this._db);
   $$BooksTableTableManager get books =>
       $$BooksTableTableManager(_db, _db.books);
+  $$SentenceTimingsTableTableManager get sentenceTimings =>
+      $$SentenceTimingsTableTableManager(_db, _db.sentenceTimings);
 }

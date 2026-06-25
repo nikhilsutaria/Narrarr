@@ -25,12 +25,36 @@ class Books extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [Books])
+/// Per-sentence measured timings (Phase 3). Cache key is
+/// (bookId, chapterHref, voiceId, sentenceIndex); voice is part of the key so a
+/// voice switch misses the cache rather than serving stale timings.
+@DataClassName('SentenceTimingRow')
+class SentenceTimings extends Table {
+  TextColumn get bookId => text()();
+  TextColumn get chapterHref => text()();
+  TextColumn get voiceId => text()();
+  IntColumn get sentenceIndex => integer()();
+  IntColumn get startMs => integer()();
+  IntColumn get durationMs => integer()();
+
+  @override
+  Set<Column> get primaryKey => {bookId, chapterHref, voiceId, sentenceIndex};
+}
+
+@DriftDatabase(tables: [Books, SentenceTimings])
 class LibraryDatabase extends _$LibraryDatabase {
   LibraryDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) await m.createTable(sentenceTimings);
+        },
+      );
 
   static QueryExecutor _open() {
     return LazyDatabase(() async {
