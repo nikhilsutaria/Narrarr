@@ -43,6 +43,8 @@ dependencies:
   path: ^1.9.1
   archive: ^3.6.1
   file_picker: ^11.0.2
+  drift: ^2.31.0
+  sqlite3_flutter_libs: ^0.5.42
 
 dev_dependencies:
   flutter_test:
@@ -54,6 +56,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  drift_dev: ^2.31.0
+  build_runner: ^2.15.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -72,6 +76,17 @@ flutter:
     - assets/the-odyssey-homer.epub
     # Default neural voice, bundled for now. Download-on-demand is Phase 4.
     - assets/voices/vits-piper-en_US-amy-low.tar
+
+  fonts:
+    # Atkinson Hyperlegible (OFL) — dyslexia-/low-vision-friendly. Bundled for
+    # offline use (no network fetch). Used for app UI and offered as a reader font.
+    - family: Atkinson Hyperlegible
+      fonts:
+        - asset: assets/fonts/AtkinsonHyperlegible-Regular.ttf
+        - asset: assets/fonts/AtkinsonHyperlegible-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/AtkinsonHyperlegible-Italic.ttf
+          style: italic
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
