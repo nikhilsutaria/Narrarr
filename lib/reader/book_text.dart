@@ -33,23 +33,57 @@ List<String> sentencesFromHtml(String html) {
       .toList();
 }
 
-/// Load the EPUB and return the sentences of the chapter whose content-file
-/// name contains [contentFileHint].
-Future<List<String>> chapterSentences(
+/// A chapter resolved for reading: a content-file name fragment (to match
+/// against the reader's reading order) and its speakable sentences.
+typedef ResolvedChapter = ({String hrefHint, List<String> sentences});
+
+/// Load the EPUB and resolve the chapter to read.
+///
+/// If [contentFileHint] is given (e.g. the bundled sample's `book-9`), that
+/// chapter is used; otherwise the **first substantive chapter** is picked
+/// (first content file with > 600 chars of prose, skipping cover/title/nav).
+Future<ResolvedChapter> resolveChapter(
   Uint8List epubBytes, {
-  required String contentFileHint,
+  String? contentFileHint,
   int? max,
 }) async {
   final book = await EpubReader.readBook(epubBytes);
   final files = book.Content?.Html ?? const {};
-  final hint = contentFileHint.toLowerCase();
+
+  String? hint;
   String html = '';
-  for (final e in files.entries) {
-    if (e.key.toLowerCase().contains(hint)) {
-      html = e.value.Content ?? '';
-      break;
+
+  if (contentFileHint != null) {
+    final h = contentFileHint.toLowerCase();
+    for (final e in files.entries) {
+      if (e.key.toLowerCase().contains(h)) {
+        hint = e.key;
+        html = e.value.Content ?? '';
+        break;
+      }
     }
   }
+
+  if (html.isEmpty) {
+    for (final e in files.entries) {
+      final content = e.value.Content ?? '';
+      if (sentencesFromHtml(content).join(' ').length > 600) {
+        hint = e.key;
+        html = content;
+        break;
+      }
+    }
+  }
+
+  // Fall back to the very first content file if nothing substantive was found.
+  if (html.isEmpty && files.isNotEmpty) {
+    hint = files.keys.first;
+    html = files.values.first.Content ?? '';
+  }
+
   final all = sentencesFromHtml(html);
-  return max == null ? all : all.take(max).toList();
+  return (
+    hrefHint: hint ?? (contentFileHint ?? ''),
+    sentences: max == null ? all : all.take(max).toList(),
+  );
 }

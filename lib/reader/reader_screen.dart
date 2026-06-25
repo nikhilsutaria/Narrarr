@@ -1,34 +1,26 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_readium/flutter_readium.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
+import '../library/book.dart';
 import '../narration/neural_narrator.dart';
 import '../sync/narration_controller.dart';
+import '../ui/theme.dart';
 import 'book_text.dart';
 
-/// The v0.1 reader: renders a bundled EPUB chapter with flutter_readium and
-/// plays it aloud with the offline neural voice while the current sentence
-/// highlights and the page auto-follows.
+/// Renders an EPUB chapter with flutter_readium and plays it aloud with the
+/// offline neural voice while the current sentence highlights and the page
+/// auto-follows.
 ///
-/// This is the foundation vertical slice — a single bundled book and chapter.
-/// Library import, persisted position, position-driven sync, background
-/// playback, and speed control are the subsequent MVP phases (see the MVP spec).
+/// Reads the bundled sample's Book IX (its hand-picked demo chapter) and the
+/// first substantive chapter of any imported book. Persisted position,
+/// multi-chapter navigation, position-driven sync, background playback, and
+/// speed control are subsequent MVP tasks (see the Phase 1 plan + MVP spec).
 class ReaderScreen extends StatefulWidget {
-  const ReaderScreen({
-    super.key,
-    this.bookAsset = 'assets/the-odyssey-homer.epub',
-    this.chapterHint = 'book-9',
-  });
+  const ReaderScreen({super.key, required this.book});
 
-  /// Bundled EPUB asset to open.
-  final String bookAsset;
-
-  /// Spine-file name fragment selecting the chapter to read.
-  final String chapterHint;
+  final Book book;
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -59,24 +51,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _open() async {
     try {
-      final path = await _copyAssetToFile(widget.bookAsset);
+      final path = widget.book.filePath;
       final pub = await _readium.openPublication('file://$path');
 
-      final chapter = pub.readingOrder.firstWhere(
-        (l) => l.href.toLowerCase().contains(widget.chapterHint),
+      final bytes = await File(path).readAsBytes();
+      final chapter = await resolveChapter(
+        bytes,
+        contentFileHint: widget.book.isBundledSample ? 'book-9' : null,
+      );
+
+      final link = pub.readingOrder.firstWhere(
+        (l) => l.href.toLowerCase().contains(chapter.hrefHint.toLowerCase()),
         orElse: () => pub.readingOrder.first,
       );
 
-      final bytes = await File(path).readAsBytes();
-      final sentences =
-          await chapterSentences(bytes, contentFileHint: widget.chapterHint);
-
-      _narration.setSentences(sentences);
+      _narration.setSentences(chapter.sentences);
       setState(() {
         _pub = pub;
-        _chapterHref = chapter.href;
-        _status = sentences.isEmpty
-            ? 'No readable text found in chapter.'
+        _chapterHref = link.href;
+        _status = chapter.sentences.isEmpty
+            ? 'No readable text found in this book.'
             : 'Ready';
       });
     } catch (e, st) {
@@ -93,13 +87,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _highlightSentence(int index) async {
     final loc = _sentenceLocator(index);
+    final highlight =
+        Theme.of(context).extension<ReadingColors>()!.sentenceHighlight;
     await _readium.applyDecorations(_highlightGroup, [
       ReaderDecoration(
         id: 'utterance',
         locator: loc,
         style: ReaderDecorationStyle(
           style: DecorationStyle.highlight,
-          tint: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
+          tint: highlight,
         ),
       ),
     ]);
@@ -122,17 +118,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     await _narration.play();
   }
 
-  Future<String> _copyAssetToFile(String asset) async {
-    final dir = await getApplicationSupportDirectory();
-    final out = File(p.join(dir.path, p.basename(asset)));
-    if (!await out.exists()) {
-      final data = await rootBundle.load(asset);
-      await out.writeAsBytes(
-          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
-    }
-    return out.path;
-  }
-
   @override
   void dispose() {
     _narration.removeListener(_onNarrationChanged);
@@ -147,7 +132,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       return Scaffold(body: Center(child: Text(_status)));
     }
     return Scaffold(
-      appBar: AppBar(title: Text(pub.metadata.title)),
+      appBar: AppBar(title: Text(widget.book.title)),
       body: ReadiumReaderWidget(
         publication: pub,
         loadingWidget: const Center(child: CircularProgressIndicator()),
