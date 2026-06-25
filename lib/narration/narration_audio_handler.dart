@@ -3,6 +3,7 @@ import 'package:audio_session/audio_session.dart';
 
 import '../sync/narration_controller.dart';
 import 'neural_narrator.dart';
+import 'voice_manager.dart';
 
 /// Bridges the sentence-based [NarrationController] to `audio_service`, so
 /// narration runs in a foreground service with a lock-screen / Now-Playing
@@ -136,7 +137,9 @@ Future<NarrationAudioHandler> narrationHandler() async {
 
   final handler = await AudioService.init(
     builder: () => NarrationAudioHandler(
-      NarrationController(engine: NeuralNarrator()),
+      NarrationController(
+        engine: NeuralNarrator(voiceManager: DownloadingVoiceManager()),
+      ),
     ),
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'dev.narrarr.audio',

@@ -32,7 +32,10 @@ class NeuralNarrator implements TtsEngine {
   // Two players ping-pong: while one plays the current clip, the next clip's
   // source is pre-loaded on the other, so starting it is instant (~250ms saved
   // per clip on the POC emulator).
-  final List<AudioPlayer> _players = [AudioPlayer(), AudioPlayer()];
+  // Lazy so merely constructing the engine doesn't touch the audioplayers
+  // platform channel (keeps it unit-testable and off the cold-start path);
+  // the two players are created on first init/use.
+  late final List<AudioPlayer> _players = [AudioPlayer(), AudioPlayer()];
   int _cur = 0;
   String? _armed;
   _Prepared? _armedPrep;
@@ -81,6 +84,21 @@ class NeuralNarrator implements TtsEngine {
       await _synth.synth('Ready.');
     } catch (_) {}
     _inited = true;
+  }
+
+  /// Switch the active voice. If the engine was already initialised, re-init the
+  /// synth isolate against the new model; otherwise just record the selection
+  /// (the lazy [init] will pick it up). Safe to call while idle.
+  Future<void> setVoice(VoiceConfig next) async {
+    if (next.id == voice.id) return;
+    voice = next;
+    if (_inited) {
+      await stop();
+      _synth.dispose();
+      _inited = false;
+      _cache.clear();
+      await init();
+    }
   }
 
   @override
