@@ -13,7 +13,7 @@
 [![Accessibility first](https://img.shields.io/badge/accessibility-first--class-blueviolet)](#-features)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-[**Features**](#-features) · [**How it works**](#-how-it-works) · [**Build it**](#-getting-started) · [**Roadmap**](#-roadmap) · [**Docs**](#-documentation)
+[**Features**](#-features) · [**How it works**](#-how-it-works) · [**Install**](#-getting-started) · [**Voices**](#-voices-ai-readers) · [**Roadmap**](#-roadmap) · [**Docs**](#-documentation)
 
 </div>
 
@@ -112,15 +112,28 @@ Verified on an Android emulator **and a real Pixel 8** (including EPUB import an
 
 ## 🚀 Getting started
 
-Narrarr isn't on an app store yet — for now you build and run it from source.
+Two ways in: **install the prebuilt Android APK** (fastest), or **build from source**.
 
-### Prerequisites
+### 📲 Install on Android (prebuilt APK)
+
+No toolchain needed — just download and install.
+
+1. **[⬇️ Download from Releases »](https://github.com/nikhilsutaria/Narrarr/releases)** — open the newest release and grab the `Narrarr-…-arm64-v8a.apk` asset under **Assets**.
+   - Built for **arm64-v8a** — effectively every Android phone from the last several years. (Not for x86 emulators; for those, build from source.)
+2. Open the downloaded `.apk`. The first time, Android asks permission to **install unknown apps** — allow it for the app you downloaded with (**Settings → Apps → _your browser/files app_ → Install unknown apps → Allow**), then tap **Install**.
+3. Launch Narrarr. A sample book (*The Odyssey*) and the default voice are bundled, so the read-aloud loop works immediately — then import your own DRM-free EPUBs from inside the app.
+
+> ⚠️ Narrarr is **pre-release** and not yet on an app store. The APK is large (~230 MB) because the default neural voice ships inside it — a smaller, **system-TTS-by-default install with voices downloaded on demand is planned ([#15](https://github.com/nikhilsutaria/Narrarr/issues/15))**.
+
+### 🛠️ Build from source
+
+#### Prerequisites
 
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) (Dart `^3.8`)
 - **Android:** minSdk **24**, compileSdk **36**, NDK **27** (required by `sherpa_onnx` + `flutter_readium`)
 - A connected Android device or emulator
 
-### Run it
+#### Run it
 
 ```bash
 git clone <this-repo-url>
@@ -132,7 +145,7 @@ flutter run              # build & launch on your device/emulator
 
 A sample book (*The Odyssey*) and the default voice are bundled, so you can hear the read-aloud loop immediately — then import your own DRM-free EPUBs from inside the app.
 
-### Other useful commands
+#### Other useful commands
 
 ```bash
 flutter analyze                       # lint
@@ -145,6 +158,27 @@ dart run build_runner build --delete-conflicting-outputs
 
 ---
 
+## 🎙️ Voices (AI readers)
+
+Narrarr narrates with on-device [Piper](https://github.com/rhasspy/piper) neural voices — natural-sounding and **fully offline once installed**. **Amy (low)** ships with the app so narration works immediately; higher-quality voices are optional downloads you can grab and switch to anytime.
+
+| Voice | Quality | Get it | Notes |
+|---|---|---|---|
+| **Amy (low)** | Good | **Bundled** | English (US) · the default · works offline out of the box |
+| **Amy (medium)** | Higher | Download (~64 MB) | English (US) · a richer take on the default voice |
+| **Ryan (medium)** | Higher | Download (~64 MB) | English (US) · male voice |
+
+### Download & switch voices
+
+1. In the app, open **Settings** — the ⚙️ gear at the top-right of your library.
+2. Tap **Voices** — _“Download, choose, and remove offline voices.”_
+3. Tap a voice to **download** it (one-time, from the open [sherpa-onnx voice releases](https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models) — no account). You’ll see download → verify → extract progress.
+4. **Select** a downloaded voice to make it the active reader. Like the bundled one, it runs **100% offline**. Remove a voice anytime to reclaim space.
+
+> All voices are English (US) for now. Want another language or voice? [Open an issue](../../issues) to request one.
+
+---
+
 ## 🗺️ Roadmap
 
 - ✅ EPUB import (DRM-free) + library
@@ -153,6 +187,7 @@ dart run build_runner build --delete-conflicting-outputs
 - ✅ Sentence-level synced highlighting + page auto-follow
 - ✅ Background playback + lock-screen controls
 - ✅ Download-on-demand higher-quality voices
+- 🔜 Smaller install: default to the device's system TTS, download neural voices (incl. Amy) on demand ([#15](https://github.com/nikhilsutaria/Narrarr/issues/15))
 - 🔜 iOS support
 - 🔜 App-store / F-Droid distribution
 
