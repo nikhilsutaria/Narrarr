@@ -62,6 +62,13 @@ dev_dependencies:
   drift_dev: ^2.31.0
   build_runner: ^2.15.0
 
+# Launcher icon: the source art lives in assets/icon/ (a warm-brown brand
+# placeholder with an "N" monogram). The Android launcher resources
+# (mipmap-*/ic_launcher*.png + the adaptive-icon XML) are generated from it by
+# tool/gen_launcher_icons.py — re-run `python tool/gen_launcher_icons.py` after
+# swapping in final artwork. (flutter_launcher_icons isn't used because its
+# current releases require `image ^4`, which conflicts with epubx's `image ^3`.)
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
