@@ -52,7 +52,7 @@ Costs for a free OSS project are small and fixed: **Apple Developer Program $99/
 **Voice Dream Reader died because one person couldn't sustain it** ([02](02-market-competitive-analysis.md)). With no revenue, Narrarr must avoid the same fate by design:
 
 - **Open-source from day one** so the project can outlive any single maintainer and accept contributors.
-- **Ruthless scope discipline.** The biggest sustainability threat is feature creep. A focused v1 (EPUB + offline neural read-aloud + sentence highlighting) is far more maintainable than chasing Speechify's feature list. (See [06 · MVP Scope & Roadmap](06-mvp-scope-and-roadmap.md).)
+- **Ruthless scope discipline.** The biggest sustainability threat is feature creep. A focused v1 (EPUB + offline neural read-aloud + sentence highlighting) is far more maintainable than chasing Speechify's feature list.
 - **Community from launch.** Announce to the audiences who *are* the users — r/Blind, dyslexia and accessibility communities, DAISY forums, Hacker News, F-Droid. Many will be technical contributors with personal stake.
 - **Optional, no-strings funding** (compatible with "free forever"): GitHub Sponsors / Open Collective for hosting/donations transparency; potential grants or promotion from accessibility orgs (DAISY, Bookshare, RNIB, Benetech).
 - **Boring, documented, testable architecture** ([04](04-architecture-and-stack.md)) so a contributor (or future-you) can pick it up.
@@ -64,4 +64,4 @@ Costs for a free OSS project are small and fixed: **Apple Developer Program $99/
 
 ---
 
-*Previous: [04 · Architecture & Stack](04-architecture-and-stack.md) · Next: [06 · MVP Scope & Roadmap](06-mvp-scope-and-roadmap.md)*
+*Previous: [04 · Architecture & Stack](04-architecture-and-stack.md) · Back to [index](README.md).*

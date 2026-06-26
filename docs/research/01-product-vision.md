@@ -81,9 +81,9 @@ Because there is no revenue goal, success is defined by impact, reliability, and
 - ❌ Opening DRM-protected ebooks (Kindle/Kobo purchases) — out of scope, by design (see [05](05-risks-legal-compliance.md)).
 - ❌ Monetization, subscriptions, or accounts.
 - ❌ Cloud TTS or cloud sync in v1 (offline-first; optional cloud sync could be a *much* later, opt-in consideration).
-- ❌ Word-perfect "karaoke" highlighting in v1 (sentence-level first — see [03](03-technical-feasibility.md) and [06 · MVP Scope & Roadmap](06-mvp-scope-and-roadmap.md)).
+- ❌ Word-perfect "karaoke" highlighting in v1 (sentence-level first — see [03](03-technical-feasibility.md)).
 - ❌ Voice cloning of real people.
 
 ---
 
-*Next: [02 · Market & Competitive Analysis](02-market-competitive-analysis.md) · See also [06 · MVP Scope & Roadmap](06-mvp-scope-and-roadmap.md).*
+*Next: [02 · Market & Competitive Analysis](02-market-competitive-analysis.md).*

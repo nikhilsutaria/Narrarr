@@ -88,7 +88,7 @@ Lean on these; build only the sync layer and UX.
 5. Measure Piper synthesis RTF on the test devices to confirm "faster than real-time."
 
 **Pass / fail:**
-- ✅ **Pass** → the Flutter + flutter_readium + sherpa-onnx stack is confirmed; proceed with the roadmap ([06](06-mvp-scope-and-roadmap.md)).
+- ✅ **Pass** → the Flutter + flutter_readium + sherpa-onnx stack is confirmed; proceed with the build.
 - ❌ **Fail** (flutter_readium too thin/unstable to extract Locators or apply decorations programmatically) → fall back, in order: **(a) foliate-js in a WebView** (full DOM control of highlighting; more JS↔Dart glue), or **(b) native Readium via KMP** (best capability, most work). The narration subsystem (sherpa-onnx + just_audio) is unchanged in every fallback.
 
 This spike is **Phase 0** of the roadmap and the project's go/no-go gate for the stack.

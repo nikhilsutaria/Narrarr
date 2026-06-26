@@ -37,7 +37,7 @@ Verified on an emulator and a real **Pixel 8** (incl. EPUB import and voice down
 ## 📖 Documentation
 
 **Research** → [docs/research/README.md](docs/research/README.md)
-1. [Product Vision](docs/research/01-product-vision.md) · 2. [Market & Competition](docs/research/02-market-competitive-analysis.md) · 3. [Technical Feasibility](docs/research/03-technical-feasibility.md) · 4. [Architecture & Stack](docs/research/04-architecture-and-stack.md) · 5. [Risks, Legal & Compliance](docs/research/05-risks-legal-compliance.md) · 6. [MVP Scope & Roadmap](docs/research/06-mvp-scope-and-roadmap.md) · [Sources](docs/research/sources.md)
+1. [Product Vision](docs/research/01-product-vision.md) · 2. [Market & Competition](docs/research/02-market-competitive-analysis.md) · 3. [Technical Feasibility](docs/research/03-technical-feasibility.md) · 4. [Architecture & Stack](docs/research/04-architecture-and-stack.md) · 5. [Risks, Legal & Compliance](docs/research/05-risks-legal-compliance.md) · [Sources](docs/research/sources.md)
 
 ## ⚖️ Notes
 

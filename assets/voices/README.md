@@ -1,8 +1,8 @@
 # Bundled neural voices (local-only)
 
 The Piper voice models (`*.tar`, ~80 MB each) are **git-ignored** — they are too
-large to commit and, per the [MVP plan](../../docs/research/06-mvp-scope-and-roadmap.md),
-voices will be **downloaded on demand** (Phase 4) rather than bundled.
+large to commit; the higher-quality voices are **downloaded on demand** rather
+than bundled.
 
 For now, the foundation slice loads a bundled voice. To run the app you need:
 
