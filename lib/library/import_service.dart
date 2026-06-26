@@ -37,7 +37,19 @@ Future<ImportResult> pickAndImportEpub({
   final path = picked.files.single.path;
   if (path == null) return ImportResult.failure('Could not read the selected file.');
 
-  final src = File(path);
+  return importEpubFromFile(src: File(path), booksDir: booksDir, nowMs: nowMs);
+}
+
+/// Validate, DRM-check, and copy [src] into [booksDir], returning a [Book].
+///
+/// The core of [pickAndImportEpub] with the file picker factored out so it is
+/// unit-testable: it rejects DRM-protected (`META-INF/encryption.xml`) and
+/// unparseable files with a clear message and never throws.
+Future<ImportResult> importEpubFromFile({
+  required File src,
+  required Directory booksDir,
+  required int nowMs,
+}) async {
   final bytes = await src.readAsBytes();
 
   // DRM guard: a DRM'd EPUB carries META-INF/encryption.xml.
@@ -65,12 +77,12 @@ Future<ImportResult> pickAndImportEpub({
 
   final title = (epub.Title?.trim().isNotEmpty ?? false)
       ? epub.Title!.trim()
-      : p.basenameWithoutExtension(path);
+      : p.basenameWithoutExtension(src.path);
   final author = epub.Author?.trim();
 
   // Copy into the sandbox with a collision-resistant id.
   await booksDir.create(recursive: true);
-  final id = '${_slug(p.basenameWithoutExtension(path))}-$nowMs';
+  final id = '${_slug(p.basenameWithoutExtension(src.path))}-$nowMs';
   final destPath = p.join(booksDir.path, '$id.epub');
   await src.copy(destPath);
 
