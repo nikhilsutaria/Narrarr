@@ -1,6 +1,9 @@
 # Secrets — never commit
 .gh-token
 
+# Local AI assistant guidance — never commit
+CLAUDE.md
+
 # Miscellaneous
 *.class
 *.log
