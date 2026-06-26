@@ -59,17 +59,27 @@ class ReaderSettings {
     this.fontSizePercent = 110,
     this.lineHeight = 1.6,
     this.theme = ReaderTheme.light,
+    this.letterSpacing = 0.0,
+    this.wordSpacing = 0.0,
+    this.paragraphSpacing = 0.0,
   });
 
   ReaderFont font;
   int fontSizePercent; // 80–250
   double lineHeight; // 1.0–2.2
   ReaderTheme theme;
+  // Dyslexia-friendly spacing (0 = publisher default). em units.
+  double letterSpacing; // 0.0–0.25
+  double wordSpacing; // 0.0–0.5
+  double paragraphSpacing; // 0.0–2.0
 
   /// Translate to flutter_readium preferences. Any non-publisher override
   /// requires `publisherStyles: false`, otherwise the book's CSS wins.
   EPUBPreferences toEpubPreferences() {
-    final overriding = font != ReaderFont.publisher;
+    final overriding = font != ReaderFont.publisher ||
+        letterSpacing != 0 ||
+        wordSpacing != 0 ||
+        paragraphSpacing != 0;
     return EPUBPreferences(
       publisherStyles: overriding ? false : null,
       fontFamily: font.cssFamily,
@@ -77,6 +87,9 @@ class ReaderSettings {
       lineHeight: lineHeight,
       backgroundColor: theme.background,
       textColor: theme.text,
+      letterSpacing: letterSpacing == 0 ? null : letterSpacing,
+      wordSpacing: wordSpacing == 0 ? null : wordSpacing,
+      paragraphSpacing: paragraphSpacing == 0 ? null : paragraphSpacing,
       scroll: false,
     );
   }
@@ -86,6 +99,9 @@ class ReaderSettings {
         'fontSizePercent': fontSizePercent,
         'lineHeight': lineHeight,
         'theme': theme.name,
+        'letterSpacing': letterSpacing,
+        'wordSpacing': wordSpacing,
+        'paragraphSpacing': paragraphSpacing,
       };
 
   factory ReaderSettings.fromJson(Map<String, dynamic> j) => ReaderSettings(
@@ -99,6 +115,9 @@ class ReaderSettings {
           (t) => t.name == j['theme'],
           orElse: () => ReaderTheme.light,
         ),
+        letterSpacing: (j['letterSpacing'] as num?)?.toDouble() ?? 0.0,
+        wordSpacing: (j['wordSpacing'] as num?)?.toDouble() ?? 0.0,
+        paragraphSpacing: (j['paragraphSpacing'] as num?)?.toDouble() ?? 0.0,
       );
 
   ReaderSettings copyWith({
@@ -106,12 +125,18 @@ class ReaderSettings {
     int? fontSizePercent,
     double? lineHeight,
     ReaderTheme? theme,
+    double? letterSpacing,
+    double? wordSpacing,
+    double? paragraphSpacing,
   }) =>
       ReaderSettings(
         font: font ?? this.font,
         fontSizePercent: fontSizePercent ?? this.fontSizePercent,
         lineHeight: lineHeight ?? this.lineHeight,
         theme: theme ?? this.theme,
+        letterSpacing: letterSpacing ?? this.letterSpacing,
+        wordSpacing: wordSpacing ?? this.wordSpacing,
+        paragraphSpacing: paragraphSpacing ?? this.paragraphSpacing,
       );
 }
 

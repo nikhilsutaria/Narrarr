@@ -1,37 +1,15 @@
 import 'dart:typed_data';
 import 'package:epubx/epubx.dart';
-import 'package:html/parser.dart' as html_parser;
+
+import 'segmenter.dart';
 
 /// Turns EPUB chapter HTML into clean, speakable sentences.
 ///
-/// Verse-aware (validated in the POC + reader spike): drops the chapter
-/// `<header>`, converts `<br/>` to a space so verse lines don't glue together,
-/// treats block-closers as line breaks, then splits on sentence-final
-/// punctuation.
-///
-/// NOTE: this is the v0.1 segmenter. The MVP segmenter ([Phase 1/2]) must skip
-/// non-narratable content (footnotes, captions, tables, page numbers) and use
-/// an abbreviation-aware tokenizer (ICU BreakIterator). See the MVP spec §4.4.
-List<String> sentencesFromHtml(String html) {
-  if (html.isEmpty) return const [];
-  final pre = html
-      .replaceAll(RegExp(r'<header[\s\S]*?</header>', caseSensitive: false), ' ')
-      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' ')
-      .replaceAll(
-        RegExp(r'</(p|div|h[1-6]|li|blockquote|section)>', caseSensitive: false),
-        '\n',
-      );
-  final doc = html_parser.parse(pre);
-  final text = (doc.body?.text ?? doc.documentElement?.text ?? '')
-      .replaceAll(RegExp(r'[ \t]+'), ' ')
-      .replaceAll(RegExp(r'\s*\n\s*'), '\n')
-      .trim();
-  return text
-      .split(RegExp(r'(?<=[.!?])\s+'))
-      .map((s) => s.trim())
-      .where((s) => s.isNotEmpty)
-      .toList();
-}
+/// Thin back-compat wrapper over [Segmenter] (the MVP segmenter: skips
+/// non-narratable content, abbreviation-aware). Kept so existing callers/tests
+/// keep working.
+List<String> sentencesFromHtml(String html) =>
+    const Segmenter().sentencesFromHtml(html);
 
 /// A chapter resolved for reading: a content-file name fragment (to match
 /// against the reader's reading order) and its speakable sentences.
@@ -86,4 +64,31 @@ Future<ResolvedChapter> resolveChapter(
     hrefHint: hint ?? (contentFileHint ?? ''),
     sentences: max == null ? all : all.take(max).toList(),
   );
+}
+
+/// Resolve the whole book for narration: every **substantive** content document
+/// (> 600 chars of narratable prose, skipping cover/title/nav/colophon), in
+/// reading order, each already segmented into speakable sentences. Used for
+/// cross-chapter, whole-book playback (#6).
+Future<List<ResolvedChapter>> resolveSpine(Uint8List epubBytes) async {
+  const segmenter = Segmenter();
+  final book = await EpubReader.readBook(epubBytes);
+  final files = book.Content?.Html ?? const {};
+
+  final out = <ResolvedChapter>[];
+  for (final e in files.entries) {
+    final sentences = segmenter.sentencesFromHtml(e.value.Content ?? '');
+    if (sentences.join(' ').length <= 600) continue; // skip front/back matter
+    out.add((hrefHint: e.key, sentences: sentences));
+  }
+
+  // Never return empty for a non-empty book: fall back to the first content doc.
+  if (out.isEmpty && files.isNotEmpty) {
+    final first = files.entries.first;
+    out.add((
+      hrefHint: first.key,
+      sentences: segmenter.sentencesFromHtml(first.value.Content ?? ''),
+    ));
+  }
+  return out;
 }

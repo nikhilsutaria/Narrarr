@@ -12,6 +12,10 @@ Future<void> showReaderSettingsSheet(
   return showModalBottomSheet(
     context: context,
     showDragHandle: true,
+    // The content (font/size/line + three dyslexia-spacing sliders + theme)
+    // is taller than the default ~half-screen cap, so allow it to size to its
+    // content and scroll on short screens instead of overflowing/clipping.
+    isScrollControlled: true,
     builder: (context) {
       var s = current;
       return StatefulBuilder(
@@ -22,7 +26,7 @@ Future<void> showReaderSettingsSheet(
           }
 
           return SafeArea(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -83,6 +87,40 @@ Future<void> showReaderSettingsSheet(
                     divisions: 12,
                     label: s.lineHeight.toStringAsFixed(1),
                     onChanged: (v) => update(s.copyWith(lineHeight: v)),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Dyslexia-friendly spacing
+                  const _Label('Dyslexia-friendly spacing'),
+                  Semantics(
+                    label: 'Letter spacing',
+                    child: Slider(
+                      value: s.letterSpacing,
+                      max: 0.25,
+                      divisions: 25,
+                      label: s.letterSpacing.toStringAsFixed(2),
+                      onChanged: (v) => update(s.copyWith(letterSpacing: v)),
+                    ),
+                  ),
+                  Semantics(
+                    label: 'Word spacing',
+                    child: Slider(
+                      value: s.wordSpacing,
+                      max: 0.5,
+                      divisions: 25,
+                      label: s.wordSpacing.toStringAsFixed(2),
+                      onChanged: (v) => update(s.copyWith(wordSpacing: v)),
+                    ),
+                  ),
+                  Semantics(
+                    label: 'Paragraph spacing',
+                    child: Slider(
+                      value: s.paragraphSpacing,
+                      max: 2.0,
+                      divisions: 20,
+                      label: s.paragraphSpacing.toStringAsFixed(1),
+                      onChanged: (v) => update(s.copyWith(paragraphSpacing: v)),
+                    ),
                   ),
                   const SizedBox(height: 8),
 

@@ -1,3 +1,6 @@
+# Secrets — never commit
+.gh-token
+
 # Miscellaneous
 *.class
 *.log

@@ -16,6 +16,10 @@ abstract class TtsEngine {
   /// naturally OR when [stop] is called.
   Future<void> speak(String text);
 
+  /// Measured audio length (ms) of the most recently completed [speak], or 0 if
+  /// none has completed. Powers the Phase-3 timing table.
+  int get lastUtteranceMs;
+
   /// Optional hint to begin preparing [text] ahead of time so a later [speak]
   /// of the same text is instant. Engines that stream internally (e.g. system
   /// TTS) may treat this as a no-op.
@@ -26,9 +30,26 @@ abstract class TtsEngine {
   /// just pre-synthesize it. No-op for engines without a per-clip start cost.
   void preloadNext(String text);
 
+  /// Set output volume in [0.0, 1.0]. Used to duck under transient
+  /// interruptions (e.g. a navigation prompt) without stopping playback.
+  Future<void> setVolume(double volume);
+
+  /// Pause the currently-playing utterance in place, keeping its position so
+  /// [resume] can continue it. No-op if nothing is playing.
+  Future<void> pause();
+
+  /// Resume an utterance paused by [pause]. No-op if not paused.
+  Future<void> resume();
+
   /// Stop any current or pending speech immediately and unblock a pending
   /// [speak] future.
   Future<void> stop();
+
+  /// Switch the active voice if this engine supports voices. The argument is an
+  /// opaque voice descriptor (a `VoiceConfig` for the neural engine); engines
+  /// that don't support voices treat it as a no-op. Kept as [Object] so this
+  /// interface stays free of any engine-specific imports.
+  Future<void> setVoiceIfNeeded(Object voice) async {}
 
   /// Release native resources.
   Future<void> dispose();
