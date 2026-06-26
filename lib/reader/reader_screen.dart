@@ -12,12 +12,15 @@ import '../library/library_repository.dart';
 import '../narration/narration_audio_handler.dart';
 import '../narration/voice_catalog.dart';
 import '../narration/voice_settings.dart';
+import '../sync/book_position.dart';
 import '../sync/narration_controller.dart';
 import '../sync/sentence_match.dart';
 import '../sync/sentence_timing.dart';
 import '../sync/timing_repository.dart';
 import '../ui/theme.dart';
 import 'book_text.dart';
+import 'chapter_picker.dart';
+import 'chapter_titles.dart';
 import 'reader_settings.dart';
 import 'reader_settings_sheet.dart';
 
@@ -51,7 +54,8 @@ class ReaderScreen extends StatefulWidget {
   State<ReaderScreen> createState() => _ReaderScreenState();
 }
 
-class _ReaderScreenState extends State<ReaderScreen> {
+class _ReaderScreenState extends State<ReaderScreen>
+    with WidgetsBindingObserver {
   static const _highlightGroup = 'narrarr-utterance';
 
   final _readium = FlutterReadium();
@@ -88,7 +92,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // A hard close (swipe-away) or backgrounding may not run dispose(), so the
+    // debounced reading position would be lost. Flush it eagerly on these
+    // transitions so resume (#10) survives a killed process.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _flushLocator();
+    }
   }
 
   void _onNarrationChanged() {
@@ -119,50 +136,23 @@ class _ReaderScreenState extends State<ReaderScreen> {
       if (saved != null) _initialLocator = Locator.fromJsonString(saved);
 
       final pub = await _readium.openPublication('file://$path');
+      _pub = pub;
 
       final bytes = await File(path).readAsBytes();
       _spine = await resolveSpine(bytes);
 
-      // Start at the bundled sample's demo chapter (Book IX) if present;
-      // otherwise the first substantive chapter.
-      _spineIndex = 0;
-      if (widget.book.isBundledSample) {
-        final idx = _spine
-            .indexWhere((c) => c.hrefHint.toLowerCase().contains('book-9'));
-        if (idx >= 0) _spineIndex = idx;
-      }
-      final chapter =
-          _spine.isEmpty ? (hrefHint: '', sentences: <String>[]) : _spine[_spineIndex];
-
-      _chapterHref = _hrefFor(pub, chapter.hrefHint);
-
       // Persist reading position (debounced) as the reader location changes.
       _locSub = _readium.onTextLocatorChanged.listen(_onLocatorChanged);
-
       _narration!.fetchNextChapter = _nextChapterSentences;
       _narration!.onChapterTimed = _persistTimings;
-      _handler!.loadChapter(
-        bookId: widget.book.id,
-        title: widget.book.title,
-        author: widget.book.author,
-        sentences: chapter.sentences,
-        voiceId: _voiceId,
-        chapterHref: chapter.hrefHint,
-        onHighlight: _highlightSentence,
-      );
 
-      // Re-listen fast path: if this chapter was measured before with this
-      // voice, seed the timing table so tap-to-seek works before playback.
-      final cached = await _timings?.load(
-        bookId: widget.book.id,
-        chapterHref: chapter.hrefHint,
-        voiceId: _voiceId,
-      );
-      if (cached != null) _narration!.primeTimings(cached);
+      // Where to begin: a saved position (resume, #10), else the bundled
+      // sample's demo chapter (Book IX), else the first substantive chapter.
+      final start = _resolveStart();
+      await _loadChapterAt(start.spineIndex, startSentence: start.sentenceIndex);
 
       setState(() {
-        _pub = pub;
-        _status = chapter.sentences.isEmpty
+        _status = _spine.isEmpty
             ? 'No readable text found in this book.'
             : 'Ready';
       });
@@ -170,6 +160,94 @@ class _ReaderScreenState extends State<ReaderScreen> {
       debugPrint('[reader] open failed: $e\n$st');
       setState(() => _status = 'Failed to open book: $e');
     }
+  }
+
+  /// Decide where narration should begin on open: resume from the saved
+  /// position if one maps into the narratable spine (#10), otherwise the
+  /// default first chapter (Book IX for the bundled sample).
+  BookPosition _resolveStart() {
+    if (_spine.isEmpty) return (spineIndex: 0, sentenceIndex: 0);
+
+    final loc = _initialLocator;
+    if (loc != null) {
+      final pos = resolveBookPosition(
+        spine: [for (final c in _spine) (hrefHint: c.hrefHint, sentences: c.sentences)],
+        locatorHref: loc.href,
+        highlightText: loc.text?.highlight,
+        progression: loc.locations?.progression,
+      );
+      if (pos != null) return pos;
+    }
+
+    var spineIndex = 0;
+    if (widget.book.isBundledSample) {
+      final idx =
+          _spine.indexWhere((c) => c.hrefHint.toLowerCase().contains('book-9'));
+      if (idx >= 0) spineIndex = idx;
+    }
+    return (spineIndex: spineIndex, sentenceIndex: 0);
+  }
+
+  /// Point the narration session at spine chapter [spineIndex], with the
+  /// highlight positioned at [startSentence] (not auto-playing). The single
+  /// "start at position X" path — used for resume (#10) and chapter jumps
+  /// (#12). Primes the timing cache so tap-to-seek works before playback.
+  Future<void> _loadChapterAt(int spineIndex, {int startSentence = 0}) async {
+    final pub = _pub;
+    if (pub == null) return;
+    final chapter = _spine.isEmpty
+        ? (hrefHint: '', sentences: <String>[])
+        : _spine[spineIndex.clamp(0, _spine.length - 1)];
+    _spineIndex = _spine.isEmpty ? 0 : spineIndex.clamp(0, _spine.length - 1);
+    _chapterHref = _hrefFor(pub, chapter.hrefHint);
+
+    _handler!.loadChapter(
+      bookId: widget.book.id,
+      title: widget.book.title,
+      author: widget.book.author,
+      sentences: chapter.sentences,
+      voiceId: _voiceId,
+      chapterHref: chapter.hrefHint,
+      startSentence: startSentence,
+      onHighlight: _highlightSentence,
+    );
+
+    // Re-listen fast path: if this chapter was measured before with this voice,
+    // seed the timing table so tap-to-seek works before playback.
+    final cached = await _timings?.load(
+      bookId: widget.book.id,
+      chapterHref: chapter.hrefHint,
+      voiceId: _voiceId,
+    );
+    if (cached != null) _narration!.primeTimings(cached);
+  }
+
+  /// Jump narration to a chapter chosen from the Contents picker and start
+  /// playing from its first sentence (#12). Stops any running session first so
+  /// the play loop doesn't read the swapped-in sentences with a stale index.
+  Future<void> _jumpToChapter(int spineIndex) async {
+    await _handler!.stop();
+    await _loadChapterAt(spineIndex);
+    await _startNarration();
+  }
+
+  /// Open the Table of Contents and, if a chapter is chosen, jump to it (#12).
+  Future<void> _openContents() async {
+    if (_spine.isEmpty) return;
+    final toc = <TocEntry>[
+      for (final l in (_pub?.tocFlattened ?? const <Link>[]))
+        if (l.title != null) (href: l.href, title: l.title!),
+    ];
+    final titles = chapterTitles(
+      hrefHints: [for (final c in _spine) c.hrefHint],
+      toc: toc,
+    );
+    final chosen = await showChapterPicker(
+      context,
+      titles: titles,
+      currentIndex: _spineIndex,
+    );
+    if (chosen != null && mounted) await _jumpToChapter(chosen);
   }
 
   /// Match a chapter's content-file hint to a reading-order href.
@@ -231,6 +309,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<void> _highlightSentence(int index) async {
     if (!mounted) return;
     final loc = _sentenceLocator(index);
+    // Persist the narrated sentence (debounced) so resume lands on it, not just
+    // the reader's scroll position (#10).
+    _onLocatorChanged(loc);
     await _readium.applyDecorations(_highlightGroup, [
       ReaderDecoration(
         id: 'utterance',
@@ -306,6 +387,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
     _flushLocator();
     _locSub?.cancel();
@@ -329,6 +411,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
       appBar: AppBar(
         title: Text(widget.book.title),
         actions: [
+          IconButton(
+            tooltip: 'Contents',
+            onPressed: _spine.isEmpty ? null : _openContents,
+            icon: const Icon(Icons.list, semanticLabel: 'Contents — jump to a chapter'),
+          ),
           IconButton(
             tooltip: 'Reading settings',
             onPressed: _openSettings,

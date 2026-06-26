@@ -62,9 +62,14 @@ class NarrationController extends ChangeNotifier {
   int get sentenceCount => _sentences.length;
   String sentenceTextAt(int index) => _sentences[index];
 
-  void setSentences(List<String> sentences) {
+  /// Load a chapter's sentences and position the highlight at [startIndex]
+  /// (clamped) without starting playback. A later [play] (e.g. the reader's
+  /// "Listen" button) begins from there — this is how resume-from-position
+  /// (#10) lands on the saved sentence instead of the chapter start.
+  void setSentences(List<String> sentences, {int startIndex = 0}) {
     _sentences = sentences;
-    _index = 0;
+    _index =
+        sentences.isEmpty ? 0 : startIndex.clamp(0, sentences.length - 1);
     _timingBuilder =
         ChapterTimings.builder(chapterHref: chapterHref, voiceId: voiceId);
     _currentTimings = null;

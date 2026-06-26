@@ -43,6 +43,12 @@ class NeuralNarrator implements TtsEngine {
 
   bool _inited = false;
   bool _stopRequested = false;
+  // Desired pause state, tracked independently of the platform player. On the
+  // very first cold-launch utterance a pause() can race ahead of the player's
+  // resume() and be dropped by audioplayers (the player ends up playing while
+  // the UI shows "paused") — see #11. The speak loop re-asserts this flag right
+  // after each resume() so the pause always sticks, warm players or not.
+  bool _paused = false;
   Completer<void>? _playing;
   int _seq = 0;
   int _lastUtteranceMs = 0;
@@ -153,6 +159,10 @@ class NeuralNarrator implements TtsEngine {
         if (!completer.isCompleted) completer.complete();
       });
       await player.resume();
+      // Re-assert a pause that arrived while resume() was still landing on the
+      // native player (#11). The clip stays parked here until resume() flips
+      // _paused back, so onPlayerComplete won't fire and we don't advance.
+      if (_paused && !_stopRequested) await player.pause();
       await completer.future;
       await sub.cancel();
     }
@@ -296,18 +306,22 @@ class NeuralNarrator implements TtsEngine {
   Future<void> pause() async {
     // Pause the active clip in place. The chunk-playback loop stays parked on
     // the unresolved completer (the clip's onPlayerComplete won't fire while
-    // paused), so resume() continues exactly where it left off.
+    // paused), so resume() continues exactly where it left off. The flag lets
+    // the speak loop re-apply this if it raced the first resume() (#11).
+    _paused = true;
     await _curPlayer.pause();
   }
 
   @override
   Future<void> resume() async {
+    _paused = false;
     await _curPlayer.resume();
   }
 
   @override
   Future<void> stop() async {
     _stopRequested = true;
+    _paused = false;
     _armed = null;
     _armedPrep = null;
     await _curPlayer.stop();
