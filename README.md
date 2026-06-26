@@ -210,7 +210,7 @@ In-depth research and rationale (market gap, feasibility, architecture, legal) l
 
 ## 🤝 Contributing
 
-Contributions are welcome. The best place to start is the **[issues list](../../issues)** — pick one up, or open a new one to propose a feature or report a bug. A `flutter analyze` + `flutter test` run should pass before you submit changes.
+Contributions are welcome. Start with **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup, conventions, and the PR process, then browse the **[issues list](../../issues)** — pick one up (look for `good first issue`), or open a new one to propose a feature or report a bug. A `flutter analyze` + `flutter test` run must pass before you submit changes.
 
 ---
 
