@@ -12,6 +12,5 @@ Obtain it from the sherpa-onnx / Piper voice releases (an uncompressed `.tar`
 containing `*.onnx`, `tokens.txt`, and `espeak-ng-data/`) and place it in this
 directory. On first run it is extracted into app-support storage.
 
-> The recommended quality voice for v1 is a `ryan-medium`-class voice
-> (see [POC findings §8](../../docs/poc/02-tts-pipeline-findings.md)); `amy-low`
-> is the POC/spike carry-over and will be revisited when download-on-demand lands.
+> `amy-low` is the bundled offline default; higher-quality `ryan-medium` and
+> `amy-medium` voices download on demand from the sherpa-onnx releases.

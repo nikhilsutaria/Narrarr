@@ -19,7 +19,6 @@ pluginManagement {
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     // Versions pinned for flutter_readium 0.1.0 (Readium 3.2.0 toolkit).
-    // See docs/poc/04-reader-spike-findings.md §A.
     id("com.android.application") version "8.9.1" apply false
     id("org.jetbrains.kotlin.android") version "2.3.21" apply false
 }

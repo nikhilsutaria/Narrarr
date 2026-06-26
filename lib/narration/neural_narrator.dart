@@ -14,7 +14,7 @@ import 'voice_manager.dart';
 export 'voice_manager.dart' show VoiceConfig;
 
 /// On-device neural TTS via sherpa-onnx + Piper, with gapless continuous
-/// playback. Ported from the POC ([docs/poc/02-tts-pipeline-findings.md]); the
+/// playback. Ported from the original proof-of-concept; the
 /// four stacked fixes — long-sentence chunking, look-ahead pre-synthesis on a
 /// persistent isolate, two-player preload, and chunk-streaming — are retained.
 ///
