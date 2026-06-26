@@ -29,6 +29,31 @@ The pre-ship catalog gap is **resolved**: downloads now point at the sherpa-onnx
 
 ---
 
+## Session 3 — emulator batch (a) + Pixel 8 (b), 2026-06-26 — AUTHORITATIVE STATUS
+
+This block supersedes the per-item checkboxes below as the current source of truth.
+
+**Verified on real Pixel 8 (owner):** audio quality, gaplessness & **no drift over a chapter**; **lock-screen** playback + controls; **long backgrounded** session; **audio-focus** interruptions — phone call / other app / duck / **headphone unplug** (so `audioplayers` and `audio_session` don't fight for focus); page-follow not jumpy; tap-to-seek fidelity; **EPUB import**. → Core experience confirmed good on device.
+
+**Verified on emulator this session:** **cold-start** with no ANR; **airplane-mode** narration fully offline (bundled voice); **failed download** shows "Download failed. Tap to retry." + Retry.
+
+**Verified earlier (Sessions 1–2):** narration start + Now-Playing notification (title+author); mini-player transport + notification⇄in-app sync; skip-next/prev; sentence highlight + advance; **voice download end-to-end** (network → SHA-256 verify → bz2 → extract → activate → narrate); voices list/activate; dyslexia spacing (live); onboarding-once; settings/about.
+
+**Deferred by decision:** thermal / battery / RTF over long sessions (#13) — left to real-world use, fix-as-we-go.
+
+**STILL OPEN (small, none blocks the core v1 loop):**
+- Cross-chapter narration continuing into the next chapter (#53)
+- Messy-EPUB: skips footnotes/captions, no false breaks like "Dr. Smith" (#54–55); large-book load (#56)
+- Timing-cache re-listen: tap-to-seek before play / no re-measure / voice-switch re-measure (#72–74)
+- Voice long-press **delete** UI (#84) — covered by unit tests; UI not driven (model was cleared via app-data reset)
+- Failed-download **resume-from-`.part`** (#85) — code present, not exercised
+- **TalkBack**: no double-speak, readable when stopped, labels/focus/48dp (#89–91)
+- Empty-library + bad-file **import-error** states (#98)
+
+Best cleared opportunistically — TalkBack and a messy/multi-chapter EPUB on the Pixel, or a short focused follow-up.
+
+---
+
 ## PHASE 2 — Background read-aloud
 
 ### Background playback & lock-screen (core of Phase 2)
