@@ -148,6 +148,29 @@ void main() {
     expect(c.currentTimings!.indexAt(1500), 1);
   });
 
+  test('setSentences startIndex positions the highlight without playing', () {
+    final c = NarrationController(engine: FakeTtsEngine());
+    c.setSentences(['a', 'b', 'c'], startIndex: 2);
+    expect(c.index, 2);
+    expect(c.isPlaying, false);
+  });
+
+  test('setSentences startIndex is clamped to the sentence range', () {
+    final c = NarrationController(engine: FakeTtsEngine());
+    c.setSentences(['a', 'b'], startIndex: 99);
+    expect(c.index, 1);
+  });
+
+  test('play after a startIndex begins from that sentence', () async {
+    final fake = FakeTtsEngine();
+    final c = NarrationController(engine: fake);
+    c.setSentences(['a', 'b', 'c'], startIndex: 1);
+    unawaited(c.play());
+    await pumpEventQueue();
+    expect(fake.spoken.first, 'b');
+    await c.stop();
+  });
+
   test('stop clears playing and paused', () async {
     final fake = FakeTtsEngine();
     final c = NarrationController(engine: fake);

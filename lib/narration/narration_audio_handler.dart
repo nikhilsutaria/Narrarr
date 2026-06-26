@@ -24,6 +24,10 @@ class NarrationAudioHandler extends BaseAudioHandler {
 
   /// Point the session at a book/chapter: its sentences, notification metadata,
   /// and the reader's highlight callback. Replaces any previous session.
+  ///
+  /// [startSentence] positions the highlight (clamped) without auto-playing, so
+  /// resume-from-position (#10) and chapter jumps (#12) land on the right
+  /// sentence the next time the user presses play.
   void loadChapter({
     required String bookId,
     required String title,
@@ -31,12 +35,13 @@ class NarrationAudioHandler extends BaseAudioHandler {
     required List<String> sentences,
     String voiceId = 'unknown',
     String chapterHref = '',
+    int startSentence = 0,
     Future<void> Function(int index)? onHighlight,
   }) {
     controller.onHighlight = onHighlight;
     controller.voiceId = voiceId;
     controller.chapterHref = chapterHref;
-    controller.setSentences(sentences);
+    controller.setSentences(sentences, startIndex: startSentence);
     mediaItem.add(MediaItem(id: bookId, title: title, artist: author));
   }
 
