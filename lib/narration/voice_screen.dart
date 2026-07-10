@@ -90,15 +90,17 @@ class _VoiceScreenState extends State<VoiceScreen> {
         height: 24,
         child: CircularProgressIndicator(strokeWidth: 2),
       );
-    } else if (active) {
-      trailing = const Text('Active');
-    } else if (installed) {
-      trailing = TextButton(onPressed: () => _select(v), child: const Text('Use'));
-    } else {
+    } else if (!installed) {
+      // Even the active voice offers Download when its files aren't on disk
+      // yet — in the prod flavor the default voice starts uninstalled.
       trailing = TextButton(
         onPressed: () => _download(v),
         child: Text(err != null ? 'Retry' : 'Download'),
       );
+    } else if (active) {
+      trailing = const Text('Active');
+    } else {
+      trailing = TextButton(onPressed: () => _select(v), child: const Text('Use'));
     }
 
     return ListTile(

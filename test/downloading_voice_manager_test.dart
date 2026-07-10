@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:narrarr/build_flavor.dart';
 import 'package:narrarr/narration/voice_catalog.dart';
 import 'package:narrarr/narration/voice_manager.dart';
 import 'package:path/path.dart' as p;
@@ -101,6 +102,9 @@ void main() {
   });
 
   test('bundled voice delegates to BundledVoiceManager', () async {
+    // amy-low is only bundled in the qa flavor.
+    BuildFlavor.debugOverride = 'qa';
+    addTearDown(() => BuildFlavor.debugOverride = null);
     final (bytes, _) =
         fakeVoiceTar('vits-piper-en_US-amy-low', 'en_US-amy-low.onnx');
     final m = DownloadingVoiceManager(

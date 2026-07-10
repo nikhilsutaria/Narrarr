@@ -81,11 +81,14 @@ flutter:
   uses-material-design: true
 
   assets:
-    # Sample book bundled for the foundation slice. Real library import
-    # (file picker / share / SAF) arrives in Phase 1.
-    - assets/the-odyssey-homer.epub
-    # Default neural voice, bundled for now. Download-on-demand is Phase 4.
-    - assets/voices/vits-piper-en_US-amy-low.tar
+    # QA-flavor-only assets (flutter run --flavor qa): the sample book and the
+    # bundled default voice. The prod flavor ships neither — the library
+    # starts empty and every voice (incl. the default Amy) is
+    # download-on-demand — which keeps the released APK small.
+    - path: assets/the-odyssey-homer.epub
+      flavors: [qa]
+    - path: assets/voices/vits-piper-en_US-amy-low.tar
+      flavors: [qa]
 
   fonts:
     # Atkinson Hyperlegible (OFL) — dyslexia-/low-vision-friendly. Bundled for

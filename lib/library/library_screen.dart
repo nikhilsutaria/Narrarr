@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../build_flavor.dart';
 import '../reader/reader_screen.dart';
 import '../settings/settings_screen.dart';
 import 'book.dart';
@@ -36,7 +37,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Future<void> _init() async {
     final repo = await openAppLibrary();
-    await _seedSampleIfEmpty(repo);
+    // The sample book ships only in the QA flavor; prod starts empty.
+    if (BuildFlavor.isQa) await _seedSampleIfEmpty(repo);
     _repo = repo;
     await _refresh();
   }
@@ -50,7 +52,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     });
   }
 
-  /// On first run, seed the bundled Odyssey so the library is never empty.
+  /// On first run of the QA flavor, seed the bundled Odyssey so the library
+  /// is never empty. (The prod flavor doesn't bundle the sample asset.)
   Future<void> _seedSampleIfEmpty(LibraryRepository repo) async {
     if ((await repo.all()).isNotEmpty) return;
     final support = await getApplicationSupportDirectory();

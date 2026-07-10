@@ -32,6 +32,27 @@ android {
         versionName = flutter.versionName
     }
 
+    // Build flavors (pass --flavor qa|prod to flutter run/build):
+    //  - qa:   bundles the sample book + default Amy voice (big APK, works
+    //          fully offline out of the box). Installs side-by-side as
+    //          "Narrarr QA" (…​.qa application id).
+    //  - prod: the store build — no sample book, no bundled voice (all voices
+    //          download on demand), much smaller APK.
+    // Flutter's flavor-conditional assets in pubspec.yaml key off these names.
+    flavorDimensions += "env"
+    productFlavors {
+        create("qa") {
+            dimension = "env"
+            applicationIdSuffix = ".qa"
+            versionNameSuffix = "-qa"
+            resValue("string", "app_name", "Narrarr QA")
+        }
+        create("prod") {
+            dimension = "env"
+            resValue("string", "app_name", "Narrarr")
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
