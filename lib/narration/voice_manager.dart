@@ -79,8 +79,16 @@ class BundledVoiceManager implements VoiceManager {
 Future<void> extractVoiceTar(Uint8List bytes, Directory support) async {
   final List<int> tarBytes =
       _isBzip2(bytes) ? BZip2Decoder().decodeBytes(bytes) : bytes;
+  final root = p.normalize(p.absolute(support.path));
   for (final entry in TarDecoder().decodeBytes(tarBytes)) {
-    final outPath = p.join(support.path, entry.name);
+    final outPath = p.normalize(p.join(root, entry.name));
+    // Zip-slip guard: an entry named `../x` or an absolute path must never
+    // write outside the extraction dir (defense in depth behind the sha256
+    // pin on downloads and the signed APK on bundled assets).
+    if (!p.isWithin(root, outPath)) {
+      throw FormatException(
+          'Voice archive entry escapes extraction dir: ${entry.name}');
+    }
     if (entry.isFile) {
       await Directory(p.dirname(outPath)).create(recursive: true);
       await File(outPath).writeAsBytes(entry.content as List<int>);
@@ -135,6 +143,14 @@ class DownloadingVoiceManager implements VoiceManager {
       return modelDir; // already installed
     }
 
+    // Every download must be integrity-pinned; refuse before fetching a byte
+    // so a future catalog entry can't silently ship unverified.
+    final expected = voice.sha256;
+    if (expected == null) {
+      throw StateError(
+          'Voice ${voice.id} has no sha256 pin; refusing unverified download');
+    }
+
     final url = Uri.parse(voice.url!);
     final partFile = File(p.join(support.path, '${voice.id}.part'));
     await partFile.parent.create(recursive: true);
@@ -150,8 +166,7 @@ class DownloadingVoiceManager implements VoiceManager {
     onProgress?.call(1.0);
 
     final bytes = await partFile.readAsBytes();
-    final expected = voice.sha256;
-    if (expected != null && sha256.convert(bytes).toString() != expected) {
+    if (sha256.convert(bytes).toString() != expected) {
       await partFile.delete();
       throw Exception('Voice ${voice.id} failed checksum verification');
     }
@@ -192,6 +207,16 @@ Future<List<int>> httpVoiceFetcher(Uri url, {int offset = 0}) async {
     final req = await client.getUrl(url);
     if (offset > 0) req.headers.add(HttpHeaders.rangeHeader, 'bytes=$offset-');
     final resp = await req.close();
+    // A resumed fetch must get 206 — a server that ignores Range would return
+    // the whole file and corrupt the appended .part (the checksum would catch
+    // it, but as a confusing retry loop). A fresh fetch must get a plain 200.
+    final expectStatus =
+        offset > 0 ? HttpStatus.partialContent : HttpStatus.ok;
+    if (resp.statusCode != expectStatus) {
+      throw HttpException(
+          'Voice download got HTTP ${resp.statusCode} (expected $expectStatus)',
+          uri: url);
+    }
     final out = <int>[];
     await for (final chunk in resp) {
       out.addAll(chunk);

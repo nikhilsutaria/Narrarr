@@ -358,12 +358,27 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// First press: lazily load the neural voice model, then start. The engine
   /// model load is deferred to here (not app/reader launch) to keep startup
   /// light — see the Phase-1 cold-start note.
+  ///
+  /// In the prod flavor even the default voice is download-on-demand, so this
+  /// first init may fetch the model — and may fail offline. Surface that as a
+  /// message instead of a forever-spinner.
   Future<void> _startNarration() async {
     final h = _handler;
     if (h == null) return;
     if (!_narratorReady) {
       setState(() => _preparingNarrator = true);
-      await h.controller.engine.init();
+      try {
+        await h.controller.engine.init();
+      } catch (e) {
+        debugPrint('[reader] narrator init failed: $e');
+        if (!mounted) return;
+        setState(() => _preparingNarrator = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Couldn\'t prepare the voice. Check your connection '
+              'and try again, or manage voices in Settings → Voices.'),
+        ));
+        return;
+      }
       if (!mounted) return;
       setState(() {
         _narratorReady = true;

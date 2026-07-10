@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: ^3.8.1
@@ -81,11 +81,14 @@ flutter:
   uses-material-design: true
 
   assets:
-    # Sample book bundled for the foundation slice. Real library import
-    # (file picker / share / SAF) arrives in Phase 1.
-    - assets/the-odyssey-homer.epub
-    # Default neural voice, bundled for now. Download-on-demand is Phase 4.
-    - assets/voices/vits-piper-en_US-amy-low.tar
+    # QA-flavor-only assets (flutter run --flavor qa): the sample book and the
+    # bundled default voice. The prod flavor ships neither — the library
+    # starts empty and every voice (incl. the default Amy) is
+    # download-on-demand — which keeps the released APK small.
+    - path: assets/the-odyssey-homer.epub
+      flavors: [qa]
+    - path: assets/voices/vits-piper-en_US-amy-low.tar
+      flavors: [qa]
 
   fonts:
     # Atkinson Hyperlegible (OFL) — dyslexia-/low-vision-friendly. Bundled for
