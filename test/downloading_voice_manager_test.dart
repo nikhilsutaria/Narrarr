@@ -101,6 +101,45 @@ void main() {
     expect(await m.isInstalled(v), isTrue);
   });
 
+  test('refuses to download a voice with no sha256 pin', () async {
+    // Defense in depth: a future catalog entry must not be able to silently
+    // ship an unverified download.
+    final (bytes, _) = fakeVoiceTar('voiceX', 'voiceX.onnx');
+    const v = VoiceConfig(
+      id: 'voiceX',
+      displayName: 'Voice X',
+      modelFile: 'voiceX.onnx',
+      url: 'https://example.test/voiceX.tar',
+    );
+    var fetched = false;
+    final m = DownloadingVoiceManager(
+      baseDir: tmp,
+      fetch: (uri, {offset = 0}) async {
+        fetched = true;
+        return bytes.sublist(offset);
+      },
+    );
+    await expectLater(m.ensureAvailable(v), throwsA(isA<StateError>()));
+    expect(fetched, isFalse, reason: 'must refuse before fetching');
+    expect(await m.isInstalled(v), isFalse);
+  });
+
+  test('extractVoiceTar rejects entries that escape the target dir', () async {
+    // Zip-slip guard: `../` and absolute entry names must not write outside
+    // the extraction dir, whatever the archive's provenance.
+    for (final evil in ['../escape.txt', '/abs/escape.txt']) {
+      final archive = Archive()..addFile(ArchiveFile(evil, 4, [1, 2, 3, 4]));
+      final bytes = Uint8List.fromList(TarEncoder().encode(archive));
+      final dest = Directory(p.join(tmp.path, 'out'))..createSync();
+      await expectLater(
+        extractVoiceTar(bytes, dest),
+        throwsA(isA<FormatException>()),
+        reason: '$evil must be rejected',
+      );
+      expect(File(p.join(tmp.path, 'escape.txt')).existsSync(), isFalse);
+    }
+  });
+
   test('bundled voice delegates to BundledVoiceManager', () async {
     // amy-low is only bundled in the qa flavor.
     BuildFlavor.debugOverride = 'qa';
