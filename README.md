@@ -28,21 +28,13 @@ Narrarr turns the **personal, DRM-free EPUBs you already own** into a Kindle-sty
 
 ## 📸 Screenshots
 
-> **Maintainer note:** screenshots aren't committed yet. Add captures to `docs/screenshots/` and uncomment the block below to make them render. Recommended set: the library grid, the reader with a sentence highlighted, the playing state, and the lock-screen / notification controls. A 10–15s screen recording of the read-aloud loop (`docs/screenshots/demo.gif`) is the single most effective thing you can add here.
-
-<!-- Once the images exist in docs/screenshots/, delete this comment wrapper to show them:
 <div align="center">
 
 | Library | Reading + sync highlight | Lock-screen controls |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/library.png" width="240" alt="Library"/> | <img src="docs/screenshots/reader.png" width="240" alt="Reader with synced highlighting"/> | <img src="docs/screenshots/lockscreen.png" width="240" alt="Lock-screen playback controls"/> |
+| <img src="docs/screenshots/library.png" width="240" alt="Library"/> | <img src="docs/screenshots/reader.png" width="240" alt="Reader narrating The Odyssey with the current sentence highlighted"/> | <img src="docs/screenshots/lockscreen.png" width="240" alt="Lock-screen playback controls while Narrarr reads The Odyssey"/> |
 
-</div>
--->
-
-<div align="center">
-
-_📷 Screenshots coming soon — [build it yourself](#-getting-started) to see the read-aloud loop in action._
+_The current sentence highlights as the voice reads it (middle) — pocket your phone and keep control from the lock screen (right)._
 
 </div>
 
