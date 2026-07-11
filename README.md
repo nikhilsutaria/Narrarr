@@ -13,8 +13,9 @@
 [![Offline](https://img.shields.io/badge/100%25-offline-success)](#-private-by-design)
 [![Accessibility first](https://img.shields.io/badge/accessibility-first--class-blueviolet)](#-features)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/♥-sponsor-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/nikhilsutaria)
 
-[**Features**](#-features) · [**How it works**](#-how-it-works) · [**Install**](#-getting-started) · [**Voices**](#-voices-ai-readers) · [**Roadmap**](#-roadmap) · [**Docs**](#-documentation)
+[**Features**](#-features) · [**How it works**](#-how-it-works) · [**Install**](#-getting-started) · [**Voices**](#-voices-ai-readers) · [**Roadmap**](#-roadmap) · [**Docs**](#-documentation) · [**Support ☕**](#-support-narrarr)
 
 </div>
 
@@ -214,6 +215,24 @@ In-depth research and rationale (market gap, feasibility, architecture, legal) l
 ## 🤝 Contributing
 
 Contributions are welcome. Start with **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup, conventions, and the PR process, then browse the **[issues list](../../issues)** — pick one up (look for `good first issue`), or open a new one to propose a feature or report a bug. A `flutter analyze` + `flutter test` run must pass before you submit changes.
+
+🔒 **Found a security issue?** Please report it privately — see **[SECURITY.md](SECURITY.md)**, not the public issue tracker.
+
+---
+
+## ☕ Support Narrarr
+
+Narrarr is **free, open-source, and always will be** — no subscriptions, no ads, no accounts. It's built and maintained by a solo developer in spare time.
+
+If Narrarr is useful to you, you can help it reach more readers. Donations go directly toward:
+
+- 📱 **Google Play Store** distribution (one-time developer registration fee)
+- 🍎 **Apple App Store** distribution (yearly developer fee — the main blocker for iOS)
+- 🧪 Test devices so releases are verified on real hardware, not just emulators
+
+<a href="https://github.com/sponsors/nikhilsutaria"><img src="https://img.shields.io/badge/♥%20Sponsor%20on%20GitHub-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor on GitHub"/></a>
+
+Can't donate? That's completely fine — **starring the repo ⭐, reporting bugs, and telling a friend who'd love being read to** help just as much.
 
 ---
 
