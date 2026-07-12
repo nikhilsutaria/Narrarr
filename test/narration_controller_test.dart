@@ -182,4 +182,82 @@ void main() {
     expect(c.isPlaying, false);
     expect(c.isPaused, false);
   });
+
+  test('sentences are normalized at the engine boundary only (#36)', () async {
+    final fake = FakeTtsEngine();
+    final c = NarrationController(engine: fake);
+    c.setSentences(['He owned 3 ships.']);
+    unawaited(c.play());
+    await pumpEventQueue();
+    expect(fake.spoken, ['He owned three ships.'],
+        reason: 'the engine hears spoken-form text');
+    expect(c.sentenceTextAt(0), 'He owned 3 ships.',
+        reason: 'the reader/highlight side keeps the original text');
+    await c.stop();
+  });
+
+  test('precache and speak see the same normalized text (cache keys align)',
+      () async {
+    final fake = FakeTtsEngine();
+    final c = NarrationController(engine: fake);
+    c.setSentences(['First one.', 'He owned 3 ships.']);
+    unawaited(c.play());
+    await pumpEventQueue();
+    expect(fake.precached, contains('He owned three ships.'));
+    fake.finishCurrent();
+    await pumpEventQueue();
+    expect(fake.spoken.last, 'He owned three ships.');
+    await c.stop();
+  });
+
+  test('nearing the chapter tail precaches the next chapter\'s opening (#35)',
+      () async {
+    final fake = FakeTtsEngine();
+    final c = NarrationController(engine: fake);
+    c.peekNextChapter = () async => ['n1', 'n2', 'n3'];
+    c.fetchNextChapter = () async => const [];
+    c.setSentences(['a', 'b', 'c']);
+
+    unawaited(c.play());
+    await pumpEventQueue();
+    // Playing 'a' (index 0 of 3): not near the tail yet.
+    expect(fake.precached, isNot(contains('n1')));
+
+    fake.finishCurrent(); // 'a' done → 'b' (i+2 == length: tail)
+    await pumpEventQueue();
+    expect(fake.precached, contains('n1'),
+        reason: 'next chapter\'s opening warms while the tail plays');
+    expect(fake.precached, contains('n2'));
+    expect(fake.precached, isNot(contains('n3')),
+        reason: 'only the opening two sentences are warmed');
+
+    await c.stop();
+  });
+
+  test('a failing peek never breaks playback (#35)', () async {
+    final fake = FakeTtsEngine();
+    final c = NarrationController(engine: fake);
+    c.peekNextChapter = () async => throw StateError('peek boom');
+    c.fetchNextChapter = () async => const [];
+    c.setSentences(['a', 'b']);
+
+    unawaited(c.play());
+    for (var i = 0; i < 6 && c.isPlaying; i++) {
+      await pumpEventQueue();
+      fake.finishCurrent();
+    }
+    await pumpEventQueue();
+    expect(fake.spoken, ['a', 'b'], reason: 'the peek is only a hint');
+    expect(c.isPlaying, false);
+  });
+
+  test('engine buffering signal surfaces as isBuffering (#40)', () async {
+    final fake = FakeTtsEngine();
+    final c = NarrationController(engine: fake);
+    expect(c.isBuffering, isFalse);
+    fake.onBuffering!(true);
+    expect(c.isBuffering, isTrue);
+    fake.onBuffering!(false);
+    expect(c.isBuffering, isFalse);
+  });
 }

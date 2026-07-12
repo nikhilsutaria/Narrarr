@@ -127,7 +127,11 @@ class NarrationAudioHandler extends BaseAudioHandler {
         MediaAction.skipToPrevious,
       },
       androidCompactActionIndices: const [0, 1, 2],
-      processingState: AudioProcessingState.ready,
+      // Surface synth stalls as buffering (#40) so the lock screen shows a
+      // loading state instead of a frozen "playing".
+      processingState: controller.isBuffering
+          ? AudioProcessingState.buffering
+          : AudioProcessingState.ready,
       playing: playing,
     ));
   }

@@ -87,4 +87,18 @@ void main() {
   test('is a TtsEngine — usable anywhere the controller expects one', () {
     expect(engine, isA<TtsEngine>());
   });
+
+  test('speed applies to BOTH engines so a switch keeps the pace (#34)',
+      () async {
+    await engine.setSpeed(1.5);
+    expect(system.speed, 1.5);
+    expect(neural.speed, 1.5);
+  });
+
+  test('onBuffering wires to both engines (#40)', () {
+    void cb(bool b) {}
+    engine.onBuffering = cb;
+    expect(system.onBuffering, same(cb));
+    expect(neural.onBuffering, same(cb));
+  });
 }

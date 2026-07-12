@@ -15,10 +15,15 @@ class FakeTtsEngine implements TtsEngine {
   final List<int> durations = [];
 
   final List<String> spoken = [];
+  final List<String> precached = [];
   Completer<void>? _current;
   int _lastUtteranceMs = 0;
   bool paused = false;
   double volume = 1.0;
+  double speed = 1.0;
+
+  @override
+  void Function(bool isBuffering)? onBuffering;
 
   @override
   String get name => 'fake';
@@ -47,7 +52,7 @@ class FakeTtsEngine implements TtsEngine {
   }
 
   @override
-  void precache(String text) {}
+  void precache(String text) => precached.add(text);
 
   @override
   void preloadNext(String text) {}
@@ -57,6 +62,9 @@ class FakeTtsEngine implements TtsEngine {
 
   @override
   Future<void> setVolume(double v) async => volume = v;
+
+  @override
+  Future<void> setSpeed(double s) async => speed = s;
 
   @override
   Future<void> pause() async => paused = true;

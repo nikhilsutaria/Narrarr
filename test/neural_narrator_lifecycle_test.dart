@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:narrarr/narration/neural_narrator.dart';
+import 'package:narrarr/narration/pcm_playback.dart';
 import 'package:narrarr/narration/tts_synth_isolate.dart';
 import 'package:narrarr/narration/voice_catalog.dart';
 import 'package:narrarr/narration/voice_manager.dart';
@@ -16,6 +17,7 @@ class FakeSynth extends TtsSynthIsolate {
   bool started = false;
   bool disposed = false;
   int synthCalls = 0;
+  double? noiseScaleSeen;
 
   @override
   Future<void> start({
@@ -23,8 +25,12 @@ class FakeSynth extends TtsSynthIsolate {
     required String tokens,
     required String dataDir,
     int numThreads = 2,
+    double noiseScale = 0.667,
+    double lengthScale = 1.0,
+    double noiseW = 0.8,
   }) async {
     if (failStart) throw StateError('model failed to load');
+    noiseScaleSeen = noiseScale;
     started = true;
   }
 
@@ -43,6 +49,69 @@ class FakeSynth extends TtsSynthIsolate {
   void dispose() {
     disposed = true;
   }
+}
+
+/// Playback double: records pushed PCM; an utterance finishes as soon as its
+/// data is complete, so success-path speak() resolves in tests.
+class FakePcmPlayback implements PcmPlayback {
+  bool inited = false;
+
+  /// When false, an utterance stays "playing" after [PcmUtterance.end] until
+  /// stopped — mimics real audio that outlives its data feed.
+  bool finishOnEnd = true;
+  final List<FakePcmUtterance> utterances = [];
+
+  @override
+  Future<void> init() async => inited = true;
+
+  @override
+  Future<PcmUtterance> start(
+      {required int sampleRate, double volume = 1.0}) async {
+    final u = FakePcmUtterance(sampleRate, finishOnEnd: finishOnEnd);
+    utterances.add(u);
+    return u;
+  }
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class FakePcmUtterance implements PcmUtterance {
+  FakePcmUtterance(this.sampleRate, {this.finishOnEnd = true});
+  final int sampleRate;
+  final bool finishOnEnd;
+  final List<Float32List> chunks = [];
+  bool ended = false;
+  bool paused = false;
+  bool stopped = false;
+  final Completer<void> _done = Completer<void>();
+
+  @override
+  Future<void> add(Float32List samples) async => chunks.add(samples);
+
+  @override
+  void end() {
+    ended = true;
+    if (finishOnEnd && !_done.isCompleted) _done.complete();
+  }
+
+  @override
+  Future<void> get done => _done.future;
+
+  @override
+  Future<void> pause() async => paused = true;
+
+  @override
+  Future<void> resume() async => paused = false;
+
+  @override
+  Future<void> stop() async {
+    stopped = true;
+    if (!_done.isCompleted) _done.complete();
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {}
 }
 
 /// Voice manager double: controllable failure and a gate to hold concurrent
@@ -66,15 +135,17 @@ class FakeVoiceManager implements VoiceManager {
 void main() {
   late Directory tmp;
   late FakeVoiceManager manager;
+  late FakePcmPlayback playback;
   late List<FakeSynth> synths;
 
   NeuralNarrator narrator({bool firstSynthFailsStart = false}) {
     synths = [];
     var first = true;
+    playback = FakePcmPlayback();
     return NeuralNarrator(
       voice: VoiceCatalog.ryanMedium,
       voiceManager: manager,
-      tempDir: tmp,
+      playback: playback,
       synthFactory: () {
         final s = FakeSynth(failStart: firstSynthFailsStart && first);
         first = false;
@@ -174,5 +245,71 @@ void main() {
     // kill it — proving the engine is live, not wedged).
     synths.last.failSynth = true;
     await expectLater(n.speak('Still alive.'), throwsStateError);
+  });
+
+  test('speak streams PCM into playback and completes on audio end (#33)',
+      () async {
+    final n = narrator();
+    await n.init();
+    await n.speak('Hello there.');
+    expect(playback.inited, isTrue);
+    expect(playback.utterances, hasLength(1));
+    final u = playback.utterances.single;
+    expect(u.chunks, isNotEmpty, reason: 'PCM pushed straight to playback');
+    expect(u.ended, isTrue, reason: 'the stream must be closed after the '
+        'last chunk or the utterance never finishes');
+    expect(n.lastUtteranceMs, greaterThan(0));
+  });
+
+  test('a precached sentence plays from RAM (no re-synthesis)', () async {
+    final n = narrator();
+    await n.init();
+    final warmupCalls = synths.single.synthCalls;
+    n.precache('Hello there.');
+    await pumpEventQueue();
+    final afterPrecache = synths.single.synthCalls;
+    expect(afterPrecache, greaterThan(warmupCalls));
+    await n.speak('Hello there.');
+    expect(synths.single.synthCalls, afterPrecache,
+        reason: 'speak must consume the cached PCM, not synthesize again');
+    expect(playback.utterances.single.ended, isTrue);
+  });
+
+  test('stop unblocks an in-flight speak (#33)', () async {
+    final n = narrator();
+    await n.init();
+    // The audio "keeps playing" after its data ends until stopped, so the
+    // speak future genuinely parks on the utterance like on a device.
+    playback.finishOnEnd = false;
+    final speaking = n.speak('Hello there.');
+    await pumpEventQueue();
+    await n.stop();
+    await speaking; // must not hang
+    expect(playback.utterances.single.stopped, isTrue);
+  });
+
+  test('pause before playback start still sticks (#11)', () async {
+    final n = narrator();
+    await n.init();
+    await n.pause(); // pause lands before any utterance exists
+    final speaking = n.speak('Hello there.');
+    await pumpEventQueue();
+    expect(playback.utterances.single.paused, isTrue,
+        reason: 'the utterance start must re-assert a pre-existing pause');
+    await n.stop();
+    await speaking;
+  });
+
+  test('speed change clears the look-ahead cache (#34)', () async {
+    final n = narrator();
+    await n.init();
+    n.precache('Hello there.');
+    await pumpEventQueue();
+    final calls = synths.single.synthCalls;
+    await n.setSpeed(1.5);
+    await n.speak('Hello there.');
+    expect(synths.single.synthCalls, greaterThan(calls),
+        reason: 'cached PCM was synthesized at the old speed — it must be '
+            're-synthesized, not replayed');
   });
 }

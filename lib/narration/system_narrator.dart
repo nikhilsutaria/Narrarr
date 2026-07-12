@@ -18,6 +18,10 @@ abstract class SystemTts {
 
   Future<void> setVolume(double volume);
 
+  /// Set the platform speech rate (0.0–1.0; 0.5 is normal speed on both
+  /// Android and iOS in flutter_tts).
+  Future<void> setSpeechRate(double rate);
+
   /// Fired when the current utterance finishes playing naturally.
   set onComplete(void Function() handler);
 
@@ -41,6 +45,9 @@ class FlutterTtsAdapter implements SystemTts {
 
   @override
   Future<void> setVolume(double volume) => _tts.setVolume(volume);
+
+  @override
+  Future<void> setSpeechRate(double rate) => _tts.setSpeechRate(rate);
 
   @override
   set onComplete(void Function() handler) => _tts.setCompletionHandler(handler);
@@ -85,6 +92,10 @@ class SystemNarrator implements TtsEngine {
 
   @override
   int get lastUtteranceMs => _lastUtteranceMs;
+
+  /// The system engine streams with no synth latency; never raised.
+  @override
+  void Function(bool isBuffering)? onBuffering;
 
   @override
   Future<void> init() async {
@@ -146,6 +157,16 @@ class SystemNarrator implements TtsEngine {
   @override
   Future<void> setVolume(double volume) =>
       _tts.setVolume(volume.clamp(0.0, 1.0));
+
+  /// Narration speed (#34): the platform rate scale puts normal at 0.5, so a
+  /// 1.0× UI speed maps to 0.5 and the ceiling (1.0) is ~2× — the system
+  /// engine tops out earlier than the neural one. Takes effect from the next
+  /// utterance (an in-flight one keeps its rate).
+  @override
+  Future<void> setSpeed(double speed) async {
+    final v = speed.clamp(0.5, 3.0);
+    await _tts.setSpeechRate((0.5 * v).clamp(0.0, 1.0));
+  }
 
   @override
   Future<void> pause() async {

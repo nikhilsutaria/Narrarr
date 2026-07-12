@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.1.0+5
+version: 1.2.0+6
 
 environment:
   sdk: ^3.8.1
@@ -36,7 +36,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_readium: ^0.1.0
   sherpa_onnx: ^1.13.3
-  audioplayers: ^6.6.0
   epubx: ^4.0.0
   html: ^0.15.6
   path_provider: ^2.1.5
@@ -51,6 +50,7 @@ dependencies:
   # System/native TTS engine (#15): the out-of-the-box narrator on a fresh
   # install, so no neural model download is required to start listening.
   flutter_tts: ^4.2.0
+  flutter_soloud: ^3.5.4
 
 dev_dependencies:
   flutter_test:

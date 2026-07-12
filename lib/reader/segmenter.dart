@@ -10,9 +10,12 @@ import 'package:html/parser.dart' as html_parser;
 ///  2. **Abbreviation-aware splitting** — "Dr.", "Mr.", "vol." etc. and single
 ///     initials ("A.") don't end a sentence.
 ///
-/// Verse handling is carried from the POC: `<br/>` becomes a space so verse
-/// lines don't glue together, and block elements end a line so a sentence never
-/// runs across a paragraph boundary.
+/// Verse handling (#37): `<br/>` ends a line — each verse line is its own
+/// utterance with a natural line-end pause instead of gluing a whole stanza
+/// into one run-on "sentence" — and block elements end a line so a sentence
+/// never runs across a paragraph boundary. Splitting also understands
+/// ellipses, closing quotes after terminal punctuation, decimals, and caps
+/// pathological unpunctuated run-ons.
 class Segmenter {
   const Segmenter();
 
@@ -39,7 +42,17 @@ class Segmenter {
     'gen', 'col', 'sgt', 'capt', 'lt', 'maj', 'messrs', 'mt',
     'vs', 'etc', 'al', 'cf', 'ed', 'esp', 'ibid', 'op', 'viz',
     'vol', 'no', 'pp', 'pg', 'fig', 'ch', 'sec', 'i.e', 'e.g',
+    // #37: common ones the original list missed.
+    'inc', 'corp', 'ltd', 'co', 'dept', 'est', 'approx',
+    'min', 'max', 'hr', 'hrs', 'oz', 'lb', 'lbs', 'ft',
+    'a.m', 'p.m', 'u.s',
   };
+
+  /// A "sentence" longer than this with no terminal punctuation is a run-on
+  /// (bad OCR, unpunctuated verse, decorative text); it gets re-split at
+  /// clause punctuation so synthesis chunking doesn't operate blind (#37).
+  static const int _runOnCap = 400;
+  static const int _runOnTarget = 200;
 
   List<String> sentencesFromHtml(String html) {
     if (html.trim().isEmpty) return const [];
@@ -52,6 +65,9 @@ class Segmenter {
 
     final text = buf
         .toString()
+        // Spaced ellipses (`. . .`) read as three sentence ends; canonicalize
+        // before splitting (#37).
+        .replaceAll(RegExp(r'\s*\.\s+\.\s+\.'), '...')
         .replaceAll(RegExp(r'[ \t]+'), ' ')
         .replaceAll(RegExp(r'\s*\n\s*'), '\n')
         .trim();
@@ -70,7 +86,7 @@ class Segmenter {
         final tag = child.localName?.toLowerCase() ?? '';
         if (_skipTags.contains(tag) || _skipByAttribute(child)) continue;
         if (tag == 'br') {
-          buf.write(' ');
+          buf.write('\n'); // verse: a line break ends the utterance (#37)
           continue;
         }
         _collect(child, buf);
@@ -106,7 +122,7 @@ class Segmenter {
   /// Split one paragraph into sentences, re-merging false breaks after
   /// abbreviations/initials, and dropping bare page numbers.
   List<String> _splitParagraph(String para) {
-    final raw = para.split(RegExp(r'(?<=[.!?])\s+'));
+    final raw = _splitSentences(para);
     final out = <String>[];
     var acc = '';
     for (final piece in raw) {
@@ -116,7 +132,65 @@ class Segmenter {
       acc = '';
     }
     if (acc.trim().isNotEmpty) out.add(acc.trim());
-    return out.where((s) => !_isBarePageNumber(s)).toList();
+    return [
+      for (final s in out)
+        if (!_isBarePageNumber(s)) ..._capRunOn(s),
+    ];
+  }
+
+  /// Sentence-boundary scan (#37): terminal `[.!?]` runs may be followed by
+  /// closing quotes/brackets before the whitespace (`said." Yes`), an ellipsis
+  /// followed by a lowercase continuation is a pause rather than an end, and a
+  /// period between digits (`3. 14` after reflow) never splits.
+  List<String> _splitSentences(String para) {
+    final boundary = RegExp('([.!?]+)([\'"”’)\\]]*)\\s+');
+    final out = <String>[];
+    var start = 0;
+    for (final m in boundary.allMatches(para)) {
+      final punct = m.group(1)!;
+      final next = m.end < para.length ? para[m.end] : '';
+      if (punct.endsWith('...') && RegExp(r'[a-z]').hasMatch(next)) {
+        continue; // trailing-off ellipsis, the sentence carries on
+      }
+      if (punct == '.' &&
+          m.start > 0 &&
+          _isDigit(para[m.start - 1]) &&
+          _isDigit(next)) {
+        continue; // decimal split across a space
+      }
+      out.add(para.substring(start, m.end).trim());
+      start = m.end;
+    }
+    if (start < para.length) {
+      final tail = para.substring(start).trim();
+      if (tail.isNotEmpty) out.add(tail);
+    }
+    return out;
+  }
+
+  bool _isDigit(String c) =>
+      c.isNotEmpty && c.codeUnitAt(0) >= 0x30 && c.codeUnitAt(0) <= 0x39;
+
+  /// Re-split an unpunctuated run-on at clause punctuation into pieces of
+  /// roughly [_runOnTarget] chars.
+  List<String> _capRunOn(String s) {
+    if (s.length <= _runOnCap) return [s];
+    final clauses = RegExp(r'[^,;:—]+[,;:—]*')
+        .allMatches(s)
+        .map((m) => m.group(0)!.trim())
+        .where((c) => c.isNotEmpty);
+    final out = <String>[];
+    final buf = StringBuffer();
+    for (final clause in clauses) {
+      if (buf.isNotEmpty && buf.length + 1 + clause.length > _runOnTarget) {
+        out.add(buf.toString());
+        buf.clear();
+      }
+      if (buf.isNotEmpty) buf.write(' ');
+      buf.write(clause);
+    }
+    if (buf.isNotEmpty) out.add(buf.toString());
+    return out.isEmpty ? [s] : out;
   }
 
   bool _endsWithAbbreviation(String s) {
