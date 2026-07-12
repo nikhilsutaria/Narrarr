@@ -10,6 +10,7 @@ import '../library/drift/library_database.dart';
 import '../a11y/a11y_policy.dart';
 import '../library/library_repository.dart';
 import '../narration/narration_audio_handler.dart';
+import '../narration/switchable_tts_engine.dart';
 import '../narration/voice_catalog.dart';
 import '../narration/voice_settings.dart';
 import '../sync/book_position.dart';
@@ -72,9 +73,10 @@ class _ReaderScreenState extends State<ReaderScreen>
   String _chapterHref = '';
 
   TimingRepository? _timings;
-  // The active voice, loaded from VoiceSettings in [_init] (defaults to the
-  // bundled amy). Keys the timing cache and drives engine voice selection.
-  String _voiceId = VoiceCatalog.amyLow.id;
+  // The active voice, loaded from VoiceSettings in [_applyVoiceSelection]
+  // (flavor default: system TTS in prod, bundled Amy in QA). Keys the timing
+  // cache and drives engine/voice selection.
+  String _voiceId = VoiceSettings.defaultVoiceId;
 
   /// Whole book, segmented per chapter in reading order; [_spineIndex] is the
   /// chapter currently being narrated. Drives cross-chapter playback.
@@ -82,7 +84,6 @@ class _ReaderScreenState extends State<ReaderScreen>
   int _spineIndex = 0;
 
   Locator? _initialLocator;
-  bool _narratorReady = false;
   bool _preparingNarrator = false;
 
   StreamSubscription<Locator>? _locSub;
@@ -109,7 +110,18 @@ class _ReaderScreenState extends State<ReaderScreen>
   }
 
   void _onNarrationChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // A mid-playback engine failure stops the loop and leaves a consumable
+    // error (#30) — show it instead of narration just going quiet.
+    final err = _narration?.takeError();
+    if (err != null) {
+      debugPrint('[reader] narration error: $err');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Narration stopped: the voice failed to speak. Try '
+            'again, or pick another voice in Settings → Voices.'),
+      ));
+    }
+    setState(() {});
   }
 
   Future<void> _init() async {
@@ -119,12 +131,35 @@ class _ReaderScreenState extends State<ReaderScreen>
     _handler = await narrationHandler();
     _handler!.controller.addListener(_onNarrationChanged);
     _timings = widget.timingRepository ?? TimingRepository(LibraryDatabase());
-    // Load the user's active voice and apply it to the engine before opening.
+    // Point the engine at the user's persisted selection before opening.
+    await _applyVoiceSelection();
+    await _open();
+  }
+
+  /// Re-read the persisted voice selection and route the switchable engine to
+  /// it: the system TTS (#15) or a neural voice. Called at reader open and
+  /// again on every Listen press, so a selection made in Settings → Voices
+  /// mid-session applies without reopening the book (#30).
+  Future<void> _applyVoiceSelection() async {
+    final h = _handler;
+    if (h == null) return;
     final vs = await VoiceSettingsStore().load();
     _voiceId = vs.activeVoiceId;
-    final selected = VoiceCatalog.byId(_voiceId) ?? VoiceCatalog.amyLow;
-    await _handler!.controller.engine.setVoiceIfNeeded(selected);
-    await _open();
+    final engine = h.controller.engine;
+    if (engine is SwitchableTtsEngine) {
+      if (_voiceId == kSystemVoiceId) {
+        await engine.useSystem();
+      } else {
+        await engine
+            .useNeural(VoiceCatalog.byId(_voiceId) ?? VoiceCatalog.amyLow);
+      }
+    } else {
+      // Injected test engines aren't switchable; still forward the voice.
+      await engine
+          .setVoiceIfNeeded(VoiceCatalog.byId(_voiceId) ?? VoiceCatalog.amyLow);
+    }
+    // Keep the timing-cache key in step with the selection mid-session.
+    h.controller.voiceId = _voiceId;
   }
 
   Future<void> _open() async {
@@ -355,36 +390,35 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   // ---- playback ----
 
-  /// First press: lazily load the neural voice model, then start. The engine
-  /// model load is deferred to here (not app/reader launch) to keep startup
-  /// light — see the Phase-1 cold-start note.
+  /// Start narration: apply the current voice selection, lazily init the
+  /// engine (system TTS is instant; a neural voice may load — or on prod
+  /// first-use, download — its model), then play. Engine init is deferred to
+  /// here (not app/reader launch) to keep startup light — see the Phase-1
+  /// cold-start note.
   ///
-  /// In the prod flavor even the default voice is download-on-demand, so this
-  /// first init may fetch the model — and may fail offline. Surface that as a
-  /// message instead of a forever-spinner.
+  /// Init is cheap when already initialised and single-flight when not (#30),
+  /// and the FAB is disabled while [_preparingNarrator] — so a failed attempt
+  /// is safely retryable and an impatient tap can't wedge the engine. Failures
+  /// surface as a message instead of a forever-spinner.
   Future<void> _startNarration() async {
     final h = _handler;
-    if (h == null) return;
-    if (!_narratorReady) {
-      setState(() => _preparingNarrator = true);
-      try {
-        await h.controller.engine.init();
-      } catch (e) {
-        debugPrint('[reader] narrator init failed: $e');
-        if (!mounted) return;
-        setState(() => _preparingNarrator = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Couldn\'t prepare the voice. Check your connection '
-              'and try again, or manage voices in Settings → Voices.'),
-        ));
-        return;
-      }
+    if (h == null || _preparingNarrator) return;
+    setState(() => _preparingNarrator = true);
+    try {
+      await _applyVoiceSelection();
+      await h.controller.engine.init();
+    } catch (e) {
+      debugPrint('[reader] narrator init failed: $e');
       if (!mounted) return;
-      setState(() {
-        _narratorReady = true;
-        _preparingNarrator = false;
-      });
+      setState(() => _preparingNarrator = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Couldn\'t prepare the voice. Check your connection '
+            'and try again, or manage voices in Settings → Voices.'),
+      ));
+      return;
     }
+    if (!mounted) return;
+    setState(() => _preparingNarrator = false);
     await h.play();
   }
 
@@ -459,8 +493,12 @@ class _ReaderScreenState extends State<ReaderScreen>
       floatingActionButton: _active
           ? null
           : FloatingActionButton.extended(
+              // Disabled while preparing: a second tap during a slow first-time
+              // model load would race a concurrent init (#30).
               onPressed:
-                  (_narration?.sentenceCount ?? 0) == 0 ? null : _playPause,
+                  ((_narration?.sentenceCount ?? 0) == 0 || _preparingNarrator)
+                      ? null
+                      : _playPause,
               icon: _preparingNarrator
                   ? const SizedBox(
                       width: 18,

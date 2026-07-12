@@ -45,6 +45,7 @@ class NarrationController extends ChangeNotifier {
   bool _playing = false;
   bool _paused = false;
   int _token = 0;
+  String? _error;
 
   ChapterTimingsBuilder? _timingBuilder;
   ChapterTimings? _currentTimings;
@@ -61,6 +62,16 @@ class NarrationController extends ChangeNotifier {
   bool get isPaused => _paused;
   int get sentenceCount => _sentences.length;
   String sentenceTextAt(int index) => _sentences[index];
+
+  /// Consume the most recent playback error, if any (cleared on read). Set when
+  /// the engine fails mid-playback — the loop stops loudly instead of skipping
+  /// sentences or dying silently (#30). The reader's change listener reads this
+  /// and shows a message.
+  String? takeError() {
+    final e = _error;
+    _error = null;
+    return e;
+  }
 
   /// Load a chapter's sentences and position the highlight at [startIndex]
   /// (clamped) without starting playback. A later [play] (e.g. the reader's
@@ -99,7 +110,17 @@ class NarrationController extends ChangeNotifier {
         }
         if (i + 1 < _sentences.length) engine.preloadNext(_sentences[i + 1]);
 
-        await engine.speak(_sentences[i]);
+        try {
+          await engine.speak(_sentences[i]);
+        } catch (e) {
+          if (token != _token) return; // superseded while failing — stay quiet
+          debugPrint('[narration] engine failed on sentence $i: $e');
+          _error = e.toString();
+          _playing = false;
+          _paused = false;
+          notifyListeners();
+          return;
+        }
         if (token != _token) return;
         _timingBuilder?.add(engine.lastUtteranceMs);
       }

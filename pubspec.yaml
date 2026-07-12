@@ -48,6 +48,9 @@ dependencies:
   audio_service: ^0.18.18
   audio_session: ^0.2.3
   crypto: ^3.0.6
+  # System/native TTS engine (#15): the out-of-the-box narrator on a fresh
+  # install, so no neural model download is required to start listening.
+  flutter_tts: ^4.2.0
 
 dev_dependencies:
   flutter_test:

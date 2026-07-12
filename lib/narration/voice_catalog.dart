@@ -1,6 +1,12 @@
 import '../build_flavor.dart';
 import 'voice_manager.dart';
 
+/// Sentinel voice id for the device's built-in text-to-speech (#15): no
+/// download, no [VoiceConfig] — narration routes to `SystemNarrator` instead of
+/// the neural engine. Persisted in `VoiceSettings.activeVoiceId` and used to
+/// key the timing cache like any other voice id.
+const String kSystemVoiceId = 'system';
+
 /// The voices Narrarr offers: a default voice + optional downloads.
 ///
 /// Downloads point at the sherpa-onnx `tts-models` release tarballs — open, no

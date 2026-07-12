@@ -126,6 +126,11 @@ class DownloadingVoiceManager implements VoiceManager {
   final VoiceBytesFetcher _fetch;
   final BundledVoiceManager _bundled;
 
+  // In-flight installs by voice id. Concurrent calls for the same voice (e.g.
+  // the reader's lazy init racing a tap on the Voices screen) must share one
+  // download — two writers appending to the same .part file corrupt it (#30).
+  final Map<String, Future<String>> _inFlight = {};
+
   Future<Directory> _base() async =>
       _baseDir ?? await getApplicationSupportDirectory();
 
@@ -134,6 +139,16 @@ class DownloadingVoiceManager implements VoiceManager {
 
   @override
   Future<String> ensureAvailable(VoiceConfig voice,
+      {void Function(double)? onProgress}) {
+    return _inFlight[voice.id] ??=
+        _ensure(voice, onProgress: onProgress).whenComplete(() {
+      // Success or failure, clear the slot: the fast on-disk check makes a
+      // repeat call cheap, and a failed download must be retryable.
+      _inFlight.remove(voice.id);
+    });
+  }
+
+  Future<String> _ensure(VoiceConfig voice,
       {void Function(double)? onProgress}) async {
     if (voice.isBundled) return _bundled.ensureAvailable(voice);
 

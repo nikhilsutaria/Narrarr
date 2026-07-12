@@ -17,7 +17,8 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.record_voice_over),
             title: const Text('Voices'),
-            subtitle: const Text('Download, choose, and remove offline voices'),
+            subtitle: const Text('Choose the reading voice — your device’s '
+                'built-in speech or downloadable neural voices'),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => VoiceScreen(
                 manager: DownloadingVoiceManager(),
