@@ -4,13 +4,21 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../build_flavor.dart';
 import 'voice_catalog.dart';
 
-/// Which voice the user has selected as active.
+/// Which voice the user has selected as active. [kSystemVoiceId] selects the
+/// device's built-in TTS; any other id selects that neural voice.
 class VoiceSettings {
   VoiceSettings({String? activeVoiceId})
-      : activeVoiceId = activeVoiceId ?? VoiceCatalog.amyLow.id;
+      : activeVoiceId = activeVoiceId ?? defaultVoiceId;
   String activeVoiceId;
+
+  /// Out-of-the-box selection (#15): prod (and unflavored tests) default to the
+  /// system voice so a fresh install narrates with no download; the QA flavor
+  /// keeps the bundled Amy so device QA of the neural path stays zero-setup.
+  static String get defaultVoiceId =>
+      BuildFlavor.isQa ? VoiceCatalog.amyLow.id : kSystemVoiceId;
 
   Map<String, dynamic> toJson() => {'activeVoiceId': activeVoiceId};
   factory VoiceSettings.fromJson(Map<String, dynamic> j) =>

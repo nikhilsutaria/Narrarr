@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -39,6 +40,61 @@ void main() {
     final dir = await m.ensureAvailable(v);
     expect(File(p.join(dir, 'voiceX.onnx')).existsSync(), isTrue);
     expect(await m.isInstalled(v), isTrue);
+  });
+
+  test('concurrent ensureAvailable calls share one download (#30)', () async {
+    // Two writers appending to the same .part file corrupt it — the reader's
+    // lazy init racing a Voices-screen tap must coalesce into one fetch.
+    final (bytes, hex) = fakeVoiceTar('voiceY', 'voiceY.onnx');
+    final v = VoiceConfig(
+      id: 'voiceY',
+      displayName: 'Voice Y',
+      modelFile: 'voiceY.onnx',
+      url: 'https://example.test/voiceY.tar',
+      sha256: hex,
+      sizeBytes: bytes.length,
+    );
+    var fetches = 0;
+    final gate = Completer<void>();
+    final m = DownloadingVoiceManager(
+      baseDir: tmp,
+      fetch: (uri, {offset = 0}) async {
+        fetches++;
+        await gate.future; // hold the first fetch so the second call races it
+        return bytes.sublist(offset);
+      },
+    );
+    final first = m.ensureAvailable(v);
+    final second = m.ensureAvailable(v);
+    gate.complete();
+    final dirs = await Future.wait([first, second]);
+    expect(fetches, 1);
+    expect(dirs[0], dirs[1]);
+    expect(await m.isInstalled(v), isTrue);
+  });
+
+  test('a failed download is retryable (in-flight slot is cleared)', () async {
+    final (bytes, hex) = fakeVoiceTar('voiceY', 'voiceY.onnx');
+    final v = VoiceConfig(
+      id: 'voiceY',
+      displayName: 'Voice Y',
+      modelFile: 'voiceY.onnx',
+      url: 'https://example.test/voiceY.tar',
+      sha256: hex,
+      sizeBytes: bytes.length,
+    );
+    var fail = true;
+    final m = DownloadingVoiceManager(
+      baseDir: tmp,
+      fetch: (uri, {offset = 0}) async {
+        if (fail) throw Exception('offline');
+        return bytes.sublist(offset);
+      },
+    );
+    await expectLater(m.ensureAvailable(v), throwsA(isA<Exception>()));
+    fail = false;
+    final dir = await m.ensureAvailable(v);
+    expect(File(p.join(dir, 'voiceY.onnx')).existsSync(), isTrue);
   });
 
   test('rejects a checksum mismatch and does not install', () async {

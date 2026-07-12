@@ -55,15 +55,17 @@ class _VoiceScreenState extends State<VoiceScreen> {
     }
   }
 
-  Future<void> _select(VoiceConfig v) async {
-    await widget.settingsStore.save(VoiceSettings(activeVoiceId: v.id));
-    if (mounted) setState(() => _activeId = v.id);
+  Future<void> _select(String voiceId) async {
+    await widget.settingsStore.save(VoiceSettings(activeVoiceId: voiceId));
+    if (mounted) setState(() => _activeId = voiceId);
   }
 
   Future<void> _delete(VoiceConfig v) async {
     await widget.manager.delete(v);
     _installed[v.id] = false;
-    if (_activeId == v.id) await _select(VoiceCatalog.amyLow);
+    // Deleting the active voice falls back to the flavor default (system TTS
+    // in prod) — never to a voice that would need a download to work.
+    if (_activeId == v.id) await _select(VoiceSettings.defaultVoiceId);
     if (mounted) setState(() {});
   }
 
@@ -72,13 +74,34 @@ class _VoiceScreenState extends State<VoiceScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Voices')),
       body: ListView(
-        children: [for (final v in VoiceCatalog.all) _tile(v)],
+        children: [
+          _systemTile(),
+          for (final v in VoiceCatalog.all) _tile(v),
+        ],
       ),
     );
   }
 
+  /// The device's built-in TTS (#15): always available, nothing to download or
+  /// delete. Pinned above the neural voices.
+  Widget _systemTile() {
+    final active = _activeId == kSystemVoiceId;
+    return ListTile(
+      title: const Text('System voice'),
+      subtitle: const Text("Your device's built-in speech • no download"),
+      trailing: active
+          ? const Text('Active')
+          : TextButton(
+              onPressed: () => _select(kSystemVoiceId),
+              child: const Text('Use'),
+            ),
+    );
+  }
+
   Widget _tile(VoiceConfig v) {
-    final installed = _installed[v.id] ?? v.isBundled;
+    // A bundled voice ships inside the APK: it is always available even before
+    // its first-use extraction to disk, so never offer it as a "Download".
+    final installed = (_installed[v.id] ?? false) || v.isBundled;
     final active = _activeId == v.id;
     final busy = _busy[v.id] ?? false;
     final err = _error[v.id];
@@ -100,7 +123,8 @@ class _VoiceScreenState extends State<VoiceScreen> {
     } else if (active) {
       trailing = const Text('Active');
     } else {
-      trailing = TextButton(onPressed: () => _select(v), child: const Text('Use'));
+      trailing =
+          TextButton(onPressed: () => _select(v.id), child: const Text('Use'));
     }
 
     return ListTile(

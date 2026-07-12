@@ -22,29 +22,44 @@ export 'voice_manager.dart' show VoiceConfig;
 /// audio-end). The position-driven sync layer is a Phase-3 task; this engine
 /// still serves as the source of truth for measured clip durations there.
 class NeuralNarrator implements TtsEngine {
-  NeuralNarrator({VoiceConfig? voice, VoiceManager? voiceManager})
-      : voice = voice ?? VoiceCatalog.amyLow,
+  NeuralNarrator({
+    VoiceConfig? voice,
+    VoiceManager? voiceManager,
+    TtsSynthIsolate Function()? synthFactory,
+    Directory? tempDir,
+  })  : voice = voice ?? VoiceCatalog.amyLow,
         // Downloading manager by default: it serves bundled voices too, and in
         // the prod flavor the default voice is download-only.
-        _voiceManager = voiceManager ?? DownloadingVoiceManager();
+        _voiceManager = voiceManager ?? DownloadingVoiceManager(),
+        _synthFactory = synthFactory ?? TtsSynthIsolate.new,
+        _injectedTmpDir = tempDir;
 
   VoiceConfig voice;
   final VoiceManager _voiceManager;
 
-  final TtsSynthIsolate _synth = TtsSynthIsolate();
+  // A fresh isolate per (re)init — TtsSynthIsolate is one-shot (its dispose is
+  // permanent), so reusing an instance across init/setVoice cycles is exactly
+  // the wedge #30 describes. The factory is injectable for tests.
+  final TtsSynthIsolate Function() _synthFactory;
+  final Directory? _injectedTmpDir;
+  TtsSynthIsolate? _synth;
   // Two players ping-pong: while one plays the current clip, the next clip's
   // source is pre-loaded on the other, so starting it is instant (~250ms saved
   // per clip on the POC emulator).
-  // Lazy so merely constructing the engine doesn't touch the audioplayers
-  // platform channel (keeps it unit-testable and off the cold-start path);
-  // the two players are created on first init/use.
-  late final List<AudioPlayer> _players = [AudioPlayer(), AudioPlayer()];
+  // Lazy so merely constructing the engine — or stopping/switching voice
+  // before anything ever played — doesn't touch the audioplayers platform
+  // channel (keeps it unit-testable and off the cold-start path); the two
+  // players are created on first playback use.
+  List<AudioPlayer>? _playersOrNull;
+  List<AudioPlayer> get _players =>
+      _playersOrNull ??= [AudioPlayer(), AudioPlayer()];
   int _cur = 0;
   String? _armed;
   _Prepared? _armedPrep;
   late Directory _tmpDir;
 
   bool _inited = false;
+  Future<void>? _initing;
   bool _stopRequested = false;
   // Desired pause state, tracked independently of the platform player. On the
   // very first cold-launch utterance a pause() can race ahead of the player's
@@ -75,35 +90,57 @@ class NeuralNarrator implements TtsEngine {
   @override
   String get name => 'Neural (${voice.id})';
 
+  /// Single-flight (#30): concurrent callers (double-tapped Listen, an engine
+  /// switch racing a play) share one attempt instead of interleaving downloads
+  /// and isolate spawns. On failure every trace of the attempt is discarded so
+  /// the next call starts clean — a failed init must never leave the engine
+  /// half-alive until an app restart.
   @override
-  Future<void> init() async {
-    if (_inited) return;
-    final modelDir = await _voiceManager.ensureAvailable(voice);
-    await _synth.start(
-      model: p.join(modelDir, voice.modelFile),
-      tokens: p.join(modelDir, 'tokens.txt'),
-      dataDir: p.join(modelDir, 'espeak-ng-data'),
-      // Cap synth threads so look-ahead can't peg every core and starve the
-      // audio-output thread mid-clip.
-      numThreads: 2,
-    );
-    _tmpDir = await getTemporaryDirectory();
-    // Warm up the ONNX graph: the first generate() is a slow cold-start.
-    try {
-      await _synth.synth('Ready.');
-    } catch (_) {}
-    _inited = true;
+  Future<void> init() {
+    if (_inited) return Future.value();
+    return _initing ??= _doInit().whenComplete(() => _initing = null);
   }
 
-  /// Switch the active voice. If the engine was already initialised, re-init the
-  /// synth isolate against the new model; otherwise just record the selection
-  /// (the lazy [init] will pick it up). Safe to call while idle.
+  Future<void> _doInit() async {
+    final synth = _synthFactory();
+    try {
+      final modelDir = await _voiceManager.ensureAvailable(voice);
+      await synth.start(
+        model: p.join(modelDir, voice.modelFile),
+        tokens: p.join(modelDir, 'tokens.txt'),
+        dataDir: p.join(modelDir, 'espeak-ng-data'),
+        // Cap synth threads so look-ahead can't peg every core and starve the
+        // audio-output thread mid-clip.
+        numThreads: 2,
+      );
+      _tmpDir = _injectedTmpDir ?? await getTemporaryDirectory();
+      // Warm up the ONNX graph: the first generate() is a slow cold-start.
+      // A warm-up failure is non-fatal — start() already proved the model
+      // loaded; per-sentence failures surface loudly from speak().
+      try {
+        await synth.synth('Ready.');
+      } catch (e) {
+        debugPrint('[narrator] warm-up synth failed: $e');
+      }
+      _synth = synth;
+      _inited = true;
+    } catch (e) {
+      synth.dispose();
+      rethrow;
+    }
+  }
+
+  /// Switch the active voice. If the engine was already initialised, tear down
+  /// the current synth isolate and re-init against the new model (a **fresh**
+  /// isolate — the old one's dispose is permanent, #30); otherwise just record
+  /// the selection (the lazy [init] will pick it up). Safe to call while idle.
   Future<void> setVoice(VoiceConfig next) async {
     if (next.id == voice.id) return;
     voice = next;
     if (_inited) {
       await stop();
-      _synth.dispose();
+      _synth?.dispose();
+      _synth = null;
       _inited = false;
       _cache.clear();
       await init();
@@ -115,10 +152,11 @@ class NeuralNarrator implements TtsEngine {
     if (!_inited) return;
     final s = text.trim();
     if (s.isEmpty || _cache.containsKey(s)) return;
-    _cache[s] = _prepare(s).catchError((e) {
-      debugPrint('[narrator] precache error: $e');
-      return const _Prepared([], 0);
-    });
+    // Cache the raw future, errors and all: a failed synthesis must surface
+    // when speak() consumes it, not silently become an empty clip the play
+    // loop skips over (that's the chapter-skipping in #30). ignore() only
+    // silences the unhandled-error zone warning if no one ever awaits it.
+    _cache[s] = _prepare(s)..ignore();
     while (_cache.length > _maxCache) {
       _cache.remove(_cache.keys.first);
     }
@@ -126,7 +164,13 @@ class NeuralNarrator implements TtsEngine {
 
   @override
   Future<void> speak(String text) async {
-    assert(_inited);
+    // A real check, not an assert: asserts vanish in release builds, and
+    // speaking through an uninitialised engine is exactly the silent failure
+    // mode of #30. A synthesis failure below also throws — the controller
+    // stops playback and surfaces it instead of sprinting through sentences.
+    if (!_inited) {
+      throw StateError('NeuralNarrator.speak() called before init()');
+    }
     _stopRequested = false;
     final s = text.trim();
     if (s.isEmpty) return;
@@ -181,10 +225,15 @@ class NeuralNarrator implements TtsEngine {
   }
 
   Future<void> _armPlayer(String s) async {
-    final prep = await (_cache[s] ??= _prepare(s).catchError((e) {
-      debugPrint('[narrator] precache error: $e');
-      return const _Prepared([], 0);
-    }));
+    final _Prepared prep;
+    try {
+      prep = await (_cache[s] ??= _prepare(s)..ignore());
+    } catch (e) {
+      // Arming is a hint; the failure stays in the cache and surfaces from the
+      // speak() that consumes this sentence.
+      debugPrint('[narrator] preload synth error: $e');
+      return;
+    }
     if (prep.isEmpty || s == _armed || _stopRequested) return;
     try {
       await _nextPlayer.setSource(DeviceFileSource(prep.clips.first));
@@ -198,8 +247,10 @@ class NeuralNarrator implements TtsEngine {
   /// Synthesize [s] into one or more short WAV clips (one per clause-chunk),
   /// written to disk and ready to play in sequence.
   Future<_Prepared> _prepare(String s) async {
+    final synth = _synth;
+    if (synth == null) throw StateError('narrator not initialised');
     final chunks = _chunkForSynthesis(s);
-    final parts = (await Future.wait(chunks.map((c) => _synth.synth(c))))
+    final parts = (await Future.wait(chunks.map((c) => synth.synth(c))))
         .where((part) => part.$1.isNotEmpty)
         .toList();
     if (parts.isEmpty) return const _Prepared([], 0);
@@ -300,7 +351,7 @@ class NeuralNarrator implements TtsEngine {
   @override
   Future<void> setVolume(double volume) async {
     final v = volume.clamp(0.0, 1.0);
-    for (final pl in _players) {
+    for (final pl in _playersOrNull ?? const <AudioPlayer>[]) {
       await pl.setVolume(v);
     }
   }
@@ -312,13 +363,13 @@ class NeuralNarrator implements TtsEngine {
     // paused), so resume() continues exactly where it left off. The flag lets
     // the speak loop re-apply this if it raced the first resume() (#11).
     _paused = true;
-    await _curPlayer.pause();
+    if (_playersOrNull != null) await _curPlayer.pause();
   }
 
   @override
   Future<void> resume() async {
     _paused = false;
-    await _curPlayer.resume();
+    if (_playersOrNull != null) await _curPlayer.resume();
   }
 
   @override
@@ -327,17 +378,19 @@ class NeuralNarrator implements TtsEngine {
     _paused = false;
     _armed = null;
     _armedPrep = null;
-    await _curPlayer.stop();
+    if (_playersOrNull != null) await _curPlayer.stop();
     if (_playing != null && !_playing!.isCompleted) _playing!.complete();
   }
 
   @override
   Future<void> dispose() async {
-    for (final pl in _players) {
+    for (final pl in _playersOrNull ?? const <AudioPlayer>[]) {
       await pl.stop();
       await pl.dispose();
     }
-    _synth.dispose();
+    _synth?.dispose();
+    _synth = null;
+    _inited = false;
   }
 
   /// Encode mono Float32 samples ([-1, 1]) as 16-bit PCM WAV bytes.

@@ -3,6 +3,8 @@ import 'package:audio_session/audio_session.dart';
 
 import '../sync/narration_controller.dart';
 import 'neural_narrator.dart';
+import 'switchable_tts_engine.dart';
+import 'system_narrator.dart';
 import 'voice_manager.dart';
 
 /// Bridges the sentence-based [NarrationController] to `audio_service`, so
@@ -143,7 +145,13 @@ Future<NarrationAudioHandler> narrationHandler() async {
   final handler = await AudioService.init(
     builder: () => NarrationAudioHandler(
       NarrationController(
-        engine: NeuralNarrator(voiceManager: DownloadingVoiceManager()),
+        // System TTS is the safe default until the reader applies the user's
+        // persisted selection (#15); the neural engine only loads its model on
+        // its own lazy init.
+        engine: SwitchableTtsEngine(
+          system: SystemNarrator(),
+          neural: NeuralNarrator(voiceManager: DownloadingVoiceManager()),
+        ),
       ),
     ),
     config: const AudioServiceConfig(
