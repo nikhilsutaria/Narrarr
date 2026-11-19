@@ -19,6 +19,9 @@ class FakeSynth extends TtsSynthIsolate {
   int synthCalls = 0;
   double? noiseScaleSeen;
 
+  /// When set, a synth call waits on it — a slow synthesis in flight.
+  Completer<void>? gate;
+
   @override
   Future<void> start({
     required String model,
@@ -41,6 +44,8 @@ class FakeSynth extends TtsSynthIsolate {
     double speed = 1.0,
   }) async {
     synthCalls++;
+    final g = gate;
+    if (g != null) await g.future;
     if (failSynth) throw StateError('synth died');
     return (Float32List.fromList(List.filled(2205, 0.5)), 22050);
   }
@@ -286,6 +291,28 @@ void main() {
     await n.stop();
     await speaking; // must not hang
     expect(playback.utterances.single.stopped, isTrue);
+  });
+
+  test('a stop during synthesis holds even after the next speak starts (#65)',
+      () async {
+    final n = narrator();
+    await n.init();
+    playback.finishOnEnd = false;
+    final gate = Completer<void>();
+    synths.last.gate = gate;
+    final first = n.speak('First sentence.'); // parked in synthesis
+    await pumpEventQueue();
+    await n.stop(); // a skip
+    synths.last.gate = null;
+    final second = n.speak('Second sentence.'); // the skip target starts
+    await pumpEventQueue();
+    gate.complete(); // the stopped sentence's synthesis lands late
+    await first;
+    await pumpEventQueue();
+    expect(playback.utterances, hasLength(1),
+        reason: 'the stopped sentence must never start playing');
+    await n.stop();
+    await second;
   });
 
   test('pause before playback start still sticks (#11)', () async {

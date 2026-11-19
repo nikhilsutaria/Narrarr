@@ -72,8 +72,12 @@ class FakeTtsEngine implements TtsEngine {
   @override
   Future<void> resume() async => paused = false;
 
+  /// How many times [stop] was called.
+  int stopCalls = 0;
+
   @override
   Future<void> stop() async {
+    stopCalls++;
     if (_current != null && !_current!.isCompleted) _current!.complete();
   }
 
