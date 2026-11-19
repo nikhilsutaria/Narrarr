@@ -187,7 +187,7 @@ class _BookTile extends StatelessWidget {
       // screen readers.
       leading: ExcludeSemantics(child: _Cover(book: book, scheme: scheme)),
       title: Text(book.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: book.author != null ? Text(book.author!) : null,
+      subtitle: _subtitle(context),
       onTap: onTap,
       trailing: PopupMenuButton<String>(
         tooltip: 'Book options',
@@ -202,6 +202,40 @@ class _BookTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+extension on _BookTile {
+  /// Author plus a reading-progress bar once the book has been opened (#46).
+  Widget? _subtitle(BuildContext context) {
+    final progress = book.progress;
+    if (progress == null) {
+      return book.author != null ? Text(book.author!) : null;
+    }
+    final pct = (progress * 100).floor();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (book.author != null) Text(book.author!),
+        const SizedBox(height: 6),
+        Semantics(
+          label: '$pct percent read',
+          excludeSemantics: true,
+          child: Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(value: progress, minHeight: 4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('$pct%', style: Theme.of(context).textTheme.labelSmall),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

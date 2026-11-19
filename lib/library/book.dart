@@ -9,6 +9,7 @@ class Book {
     this.addedAtMs = 0,
     this.lastLocatorJson,
     this.isBundledSample = false,
+    this.progress,
   });
 
   /// Stable id (we use the sandbox filename without extension).
@@ -33,7 +34,12 @@ class Book {
   /// True for the seeded sample book bundled with the app.
   final bool isBundledSample;
 
-  Book copyWith({String? lastLocatorJson, String? coverPath}) => Book(
+  /// How far through the book's narratable text the reader is (0..1), or
+  /// null if it has never been opened (#46).
+  final double? progress;
+
+  Book copyWith({String? lastLocatorJson, String? coverPath, double? progress}) =>
+      Book(
         id: id,
         title: title,
         author: author,
@@ -42,6 +48,7 @@ class Book {
         addedAtMs: addedAtMs,
         lastLocatorJson: lastLocatorJson ?? this.lastLocatorJson,
         isBundledSample: isBundledSample,
+        progress: progress ?? this.progress,
       );
 
   Map<String, dynamic> toJson() => {
@@ -53,6 +60,7 @@ class Book {
         'addedAtMs': addedAtMs,
         'lastLocatorJson': lastLocatorJson,
         'isBundledSample': isBundledSample,
+        'progress': progress,
       };
 
   factory Book.fromJson(Map<String, dynamic> j) => Book(
@@ -64,5 +72,6 @@ class Book {
         addedAtMs: (j['addedAtMs'] as num?)?.toInt() ?? 0,
         lastLocatorJson: j['lastLocatorJson'] as String?,
         isBundledSample: j['isBundledSample'] as bool? ?? false,
+        progress: (j['progress'] as num?)?.toDouble(),
       );
 }

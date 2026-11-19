@@ -21,6 +21,9 @@ class Books extends Table {
   BoolColumn get isBundledSample =>
       boolean().withDefault(const Constant(false))();
 
+  /// Fraction of the book's narratable text read so far (#46; schema v3).
+  RealColumn get progress => real().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -46,13 +49,14 @@ class LibraryDatabase extends _$LibraryDatabase {
   LibraryDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
           if (from < 2) await m.createTable(sentenceTimings);
+          if (from < 3) await m.addColumn(books, books.progress);
         },
       );
 

@@ -95,6 +95,17 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _progressMeta = const VerificationMeta(
+    'progress',
+  );
+  @override
+  late final GeneratedColumn<double> progress = GeneratedColumn<double>(
+    'progress',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -105,6 +116,7 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
     addedAtMs,
     lastLocatorJson,
     isBundledSample,
+    progress,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -175,6 +187,12 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
         ),
       );
     }
+    if (data.containsKey('progress')) {
+      context.handle(
+        _progressMeta,
+        progress.isAcceptableOrUnknown(data['progress']!, _progressMeta),
+      );
+    }
     return context;
   }
 
@@ -216,6 +234,10 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_bundled_sample'],
       )!,
+      progress: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}progress'],
+      ),
     );
   }
 
@@ -234,6 +256,9 @@ class BookRow extends DataClass implements Insertable<BookRow> {
   final int addedAtMs;
   final String? lastLocatorJson;
   final bool isBundledSample;
+
+  /// Fraction of the book's narratable text read so far (#46; schema v3).
+  final double? progress;
   const BookRow({
     required this.id,
     required this.title,
@@ -243,6 +268,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     required this.addedAtMs,
     this.lastLocatorJson,
     required this.isBundledSample,
+    this.progress,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -261,6 +287,9 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       map['last_locator_json'] = Variable<String>(lastLocatorJson);
     }
     map['is_bundled_sample'] = Variable<bool>(isBundledSample);
+    if (!nullToAbsent || progress != null) {
+      map['progress'] = Variable<double>(progress);
+    }
     return map;
   }
 
@@ -280,6 +309,9 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           ? const Value.absent()
           : Value(lastLocatorJson),
       isBundledSample: Value(isBundledSample),
+      progress: progress == null && nullToAbsent
+          ? const Value.absent()
+          : Value(progress),
     );
   }
 
@@ -297,6 +329,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       addedAtMs: serializer.fromJson<int>(json['addedAtMs']),
       lastLocatorJson: serializer.fromJson<String?>(json['lastLocatorJson']),
       isBundledSample: serializer.fromJson<bool>(json['isBundledSample']),
+      progress: serializer.fromJson<double?>(json['progress']),
     );
   }
   @override
@@ -311,6 +344,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       'addedAtMs': serializer.toJson<int>(addedAtMs),
       'lastLocatorJson': serializer.toJson<String?>(lastLocatorJson),
       'isBundledSample': serializer.toJson<bool>(isBundledSample),
+      'progress': serializer.toJson<double?>(progress),
     };
   }
 
@@ -323,6 +357,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     int? addedAtMs,
     Value<String?> lastLocatorJson = const Value.absent(),
     bool? isBundledSample,
+    Value<double?> progress = const Value.absent(),
   }) => BookRow(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -334,6 +369,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
         ? lastLocatorJson.value
         : this.lastLocatorJson,
     isBundledSample: isBundledSample ?? this.isBundledSample,
+    progress: progress.present ? progress.value : this.progress,
   );
   BookRow copyWithCompanion(BooksCompanion data) {
     return BookRow(
@@ -349,6 +385,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       isBundledSample: data.isBundledSample.present
           ? data.isBundledSample.value
           : this.isBundledSample,
+      progress: data.progress.present ? data.progress.value : this.progress,
     );
   }
 
@@ -362,7 +399,8 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           ..write('coverPath: $coverPath, ')
           ..write('addedAtMs: $addedAtMs, ')
           ..write('lastLocatorJson: $lastLocatorJson, ')
-          ..write('isBundledSample: $isBundledSample')
+          ..write('isBundledSample: $isBundledSample, ')
+          ..write('progress: $progress')
           ..write(')'))
         .toString();
   }
@@ -377,6 +415,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     addedAtMs,
     lastLocatorJson,
     isBundledSample,
+    progress,
   );
   @override
   bool operator ==(Object other) =>
@@ -389,7 +428,8 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           other.coverPath == this.coverPath &&
           other.addedAtMs == this.addedAtMs &&
           other.lastLocatorJson == this.lastLocatorJson &&
-          other.isBundledSample == this.isBundledSample);
+          other.isBundledSample == this.isBundledSample &&
+          other.progress == this.progress);
 }
 
 class BooksCompanion extends UpdateCompanion<BookRow> {
@@ -401,6 +441,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
   final Value<int> addedAtMs;
   final Value<String?> lastLocatorJson;
   final Value<bool> isBundledSample;
+  final Value<double?> progress;
   final Value<int> rowid;
   const BooksCompanion({
     this.id = const Value.absent(),
@@ -411,6 +452,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     this.addedAtMs = const Value.absent(),
     this.lastLocatorJson = const Value.absent(),
     this.isBundledSample = const Value.absent(),
+    this.progress = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BooksCompanion.insert({
@@ -422,6 +464,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     this.addedAtMs = const Value.absent(),
     this.lastLocatorJson = const Value.absent(),
     this.isBundledSample = const Value.absent(),
+    this.progress = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -435,6 +478,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     Expression<int>? addedAtMs,
     Expression<String>? lastLocatorJson,
     Expression<bool>? isBundledSample,
+    Expression<double>? progress,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -446,6 +490,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
       if (addedAtMs != null) 'added_at_ms': addedAtMs,
       if (lastLocatorJson != null) 'last_locator_json': lastLocatorJson,
       if (isBundledSample != null) 'is_bundled_sample': isBundledSample,
+      if (progress != null) 'progress': progress,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -459,6 +504,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     Value<int>? addedAtMs,
     Value<String?>? lastLocatorJson,
     Value<bool>? isBundledSample,
+    Value<double?>? progress,
     Value<int>? rowid,
   }) {
     return BooksCompanion(
@@ -470,6 +516,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
       addedAtMs: addedAtMs ?? this.addedAtMs,
       lastLocatorJson: lastLocatorJson ?? this.lastLocatorJson,
       isBundledSample: isBundledSample ?? this.isBundledSample,
+      progress: progress ?? this.progress,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -501,6 +548,9 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     if (isBundledSample.present) {
       map['is_bundled_sample'] = Variable<bool>(isBundledSample.value);
     }
+    if (progress.present) {
+      map['progress'] = Variable<double>(progress.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -518,6 +568,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
           ..write('addedAtMs: $addedAtMs, ')
           ..write('lastLocatorJson: $lastLocatorJson, ')
           ..write('isBundledSample: $isBundledSample, ')
+          ..write('progress: $progress, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -985,6 +1036,7 @@ typedef $$BooksTableCreateCompanionBuilder =
       Value<int> addedAtMs,
       Value<String?> lastLocatorJson,
       Value<bool> isBundledSample,
+      Value<double?> progress,
       Value<int> rowid,
     });
 typedef $$BooksTableUpdateCompanionBuilder =
@@ -997,6 +1049,7 @@ typedef $$BooksTableUpdateCompanionBuilder =
       Value<int> addedAtMs,
       Value<String?> lastLocatorJson,
       Value<bool> isBundledSample,
+      Value<double?> progress,
       Value<int> rowid,
     });
 
@@ -1046,6 +1099,11 @@ class $$BooksTableFilterComposer
 
   ColumnFilters<bool> get isBundledSample => $composableBuilder(
     column: $table.isBundledSample,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get progress => $composableBuilder(
+    column: $table.progress,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1098,6 +1156,11 @@ class $$BooksTableOrderingComposer
     column: $table.isBundledSample,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<double> get progress => $composableBuilder(
+    column: $table.progress,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BooksTableAnnotationComposer
@@ -1136,6 +1199,9 @@ class $$BooksTableAnnotationComposer
     column: $table.isBundledSample,
     builder: (column) => column,
   );
+
+  GeneratedColumn<double> get progress =>
+      $composableBuilder(column: $table.progress, builder: (column) => column);
 }
 
 class $$BooksTableTableManager
@@ -1174,6 +1240,7 @@ class $$BooksTableTableManager
                 Value<int> addedAtMs = const Value.absent(),
                 Value<String?> lastLocatorJson = const Value.absent(),
                 Value<bool> isBundledSample = const Value.absent(),
+                Value<double?> progress = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksCompanion(
                 id: id,
@@ -1184,6 +1251,7 @@ class $$BooksTableTableManager
                 addedAtMs: addedAtMs,
                 lastLocatorJson: lastLocatorJson,
                 isBundledSample: isBundledSample,
+                progress: progress,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1196,6 +1264,7 @@ class $$BooksTableTableManager
                 Value<int> addedAtMs = const Value.absent(),
                 Value<String?> lastLocatorJson = const Value.absent(),
                 Value<bool> isBundledSample = const Value.absent(),
+                Value<double?> progress = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksCompanion.insert(
                 id: id,
@@ -1206,6 +1275,7 @@ class $$BooksTableTableManager
                 addedAtMs: addedAtMs,
                 lastLocatorJson: lastLocatorJson,
                 isBundledSample: isBundledSample,
+                progress: progress,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

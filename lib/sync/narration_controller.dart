@@ -76,6 +76,19 @@ class NarrationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The narration speed the engine is currently using (#34). Measured
+  /// durations are normalised by it so timings recorded at different speeds
+  /// stay comparable (#46). The reader keeps this in sync with the engine.
+  double speechSpeed = 1.0;
+
+  /// Live narration rate this session, in ms per character at 1x, or null
+  /// until at least two sentences have been measured (#46).
+  double? get msPerChar =>
+      _rateSentences >= 2 && _rateChars > 0 ? _rateMs / _rateChars : null;
+  double _rateMs = 0;
+  int _rateChars = 0;
+  int _rateSentences = 0;
+
   ChapterTimingsBuilder? _timingBuilder;
   ChapterTimings? _currentTimings;
 
@@ -160,7 +173,13 @@ class NarrationController extends ChangeNotifier {
           return;
         }
         if (token != _token) return;
-        _timingBuilder?.add(engine.lastUtteranceMs);
+        final ms = (engine.lastUtteranceMs * speechSpeed).round();
+        _timingBuilder?.add(ms);
+        if (ms > 0) {
+          _rateMs += ms;
+          _rateChars += _sentences[i].length;
+          _rateSentences++;
+        }
       }
 
       // Chapter exhausted — try to roll into the next one without dropping the

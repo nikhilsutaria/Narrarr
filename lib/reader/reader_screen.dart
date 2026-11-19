@@ -15,6 +15,7 @@ import '../narration/voice_catalog.dart';
 import '../narration/voice_settings.dart';
 import '../sync/book_position.dart';
 import '../sync/narration_controller.dart';
+import '../sync/progress_estimate.dart';
 import '../sync/sentence_match.dart';
 import '../sync/sentence_timing.dart';
 import '../sync/timing_repository.dart';
@@ -83,6 +84,9 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// chapter currently being narrated. Drives cross-chapter playback.
   List<ResolvedChapter> _spine = const [];
   int _spineIndex = 0;
+
+  /// Character lengths of the whole spine — drives time left and % (#46).
+  BookLength? _bookLength;
 
   Locator? _initialLocator;
   bool _preparingNarrator = false;
@@ -167,6 +171,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     h.controller.voiceId = _voiceId;
     // Apply the persisted narration speed (#34) to both engines before play.
     _speechSpeed = vs.speechSpeed;
+    h.controller.speechSpeed = vs.speechSpeed;
     await engine.setSpeed(vs.speechSpeed);
   }
 
@@ -187,6 +192,7 @@ class _ReaderScreenState extends State<ReaderScreen>
 
       final bytes = await File(path).readAsBytes();
       _spine = await resolveSpine(bytes);
+      _bookLength = BookLength([for (final c in _spine) c.sentences]);
 
       // Persist reading position (debounced) as the reader location changes.
       _locSub = _readium.onTextLocatorChanged.listen(_onLocatorChanged);
@@ -351,7 +357,50 @@ class _ReaderScreenState extends State<ReaderScreen>
     final loc = _pendingLocator;
     final repo = widget.repository;
     if (loc == null || repo == null) return;
-    await repo.updateLocator(widget.book.id, jsonEncode(loc.toJson()));
+    final progress = _bookProgressAt(loc);
+    // Submit both writes synchronously (no await in between) so they're queued
+    // ahead of the library's refresh query when the reader closes.
+    await Future.wait([
+      repo.updateLocator(widget.book.id, jsonEncode(loc.toJson())),
+      if (progress != null) repo.updateProgress(widget.book.id, progress),
+    ]);
+  }
+
+  /// Book progress (0..1) for the library card (#46): the narrated sentence
+  /// while a session is live, otherwise wherever the page locator resolves to.
+  double? _bookProgressAt(Locator loc) {
+    final length = _bookLength;
+    final c = _narration;
+    if (length == null || length.totalChars == 0) return null;
+    if (c != null && c.isPlaying) {
+      return length.fractionAt(spineIndex: _spineIndex, sentenceIndex: c.index);
+    }
+    final pos = resolveBookPosition(
+      spine: [
+        for (final ch in _spine) (hrefHint: ch.hrefHint, sentences: ch.sentences)
+      ],
+      locatorHref: loc.href,
+      highlightText: loc.text?.highlight,
+      progression: loc.locations?.progression,
+    );
+    if (pos == null) return null;
+    return length.fractionAt(
+        spineIndex: pos.spineIndex, sentenceIndex: pos.sentenceIndex);
+  }
+
+  /// Time left in chapter/book and % through the book, from the current
+  /// narration position (#46).
+  ProgressEstimate? _estimate() {
+    final length = _bookLength;
+    final c = _narration;
+    if (length == null || c == null || length.totalChars == 0) return null;
+    return length.estimate(
+      spineIndex: _spineIndex,
+      sentenceIndex: c.index,
+      speed: _speechSpeed,
+      chapterTimings: c.currentTimings,
+      msPerChar: c.msPerChar,
+    );
   }
 
   // ---- highlight ----
@@ -452,6 +501,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     final vs = await store.load();
     vs.speechSpeed = v;
     await store.save(vs);
+    _handler?.controller.speechSpeed = v;
     await _handler?.controller.engine.setSpeed(v);
   }
 
@@ -553,64 +603,148 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// Narration is "active" while playing or paused (the session is live).
   bool get _active => _narration?.isPlaying ?? false;
 
-  /// Transport bar: previous sentence / play-pause / next sentence / stop.
+  /// Two-row narration bar (v1.3 "option A"): an info row with progress and
+  /// time left plus quick settings, above large transport buttons.
   Widget _buildNarrationBar(BuildContext context) {
-    final c = _narration!;
-    final paused = c.isPaused;
-    return BottomAppBar(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          PopupMenuButton<double>(
-            tooltip: 'Narration speed',
-            initialValue: _speechSpeed,
-            onSelected: _setSpeed,
-            itemBuilder: (_) => [
-              for (final v in _speedOptions)
-                PopupMenuItem(value: v, child: Text(_speedLabel(v))),
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainer,
+      elevation: 3,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildInfoRow(context),
+              const SizedBox(height: 4),
+              _buildTransportRow(context),
             ],
-            child: Semantics(
-              label: 'Narration speed, ${_speedLabel(_speechSpeed)}',
-              button: true,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  _speedLabel(_speechSpeed),
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
           ),
-          IconButton(
-            tooltip: 'Previous sentence',
-            iconSize: 32,
-            onPressed: () => _handler!.skipToPrevious(),
-            icon: const Icon(Icons.skip_previous),
-          ),
-          IconButton.filled(
-            tooltip: paused ? 'Resume' : 'Pause',
-            iconSize: 32,
-            onPressed: _playPause,
-            icon: Icon(paused ? Icons.play_arrow : Icons.pause,
-                semanticLabel: paused ? 'Resume narration' : 'Pause narration'),
-          ),
-          IconButton(
-            tooltip: 'Next sentence',
-            iconSize: 32,
-            onPressed: () => _handler!.skipToNext(),
-            icon: const Icon(Icons.skip_next),
-          ),
-          IconButton(
-            tooltip: 'Stop',
-            iconSize: 32,
-            onPressed: () => _handler!.stop(),
-            icon: const Icon(Icons.stop, semanticLabel: 'Stop narration'),
-          ),
-        ],
+        ),
       ),
     );
   }
+
+  Widget _buildInfoRow(BuildContext context) {
+    final theme = Theme.of(context);
+    final est = _estimate();
+    final pct = est == null ? null : (est.bookFraction * 100).floor();
+    final timeText = est == null
+        ? ''
+        : '${formatDurationShort(est.chapterRemaining)} left in chapter · '
+            '${formatDurationShort(est.bookRemaining)} in book';
+    final spoken = est == null
+        ? ''
+        : '${formatDurationSpoken(est.chapterRemaining)} left in chapter, '
+            '${formatDurationSpoken(est.bookRemaining)} left in book, '
+            '$pct percent through';
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Semantics(
+          label: spoken,
+          excludeSemantics: true,
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: est?.bookFraction ?? 0,
+                        minHeight: 6,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(pct == null ? '' : '$pct%',
+                      style: theme.textTheme.labelLarge),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(timeText, style: theme.textTheme.bodyMedium),
+              ),
+            ],
+          ),
+        ),
+        Row(
+          children: [
+            _buildSpeedChip(context),
+            const Spacer(),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSpeedChip(BuildContext context) {
+    return PopupMenuButton<double>(
+      tooltip: 'Narration speed',
+      initialValue: _speechSpeed,
+      onSelected: _setSpeed,
+      itemBuilder: (_) => [
+        for (final v in _speedOptions)
+          PopupMenuItem(value: v, child: Text(_speedLabel(v))),
+      ],
+      child: Semantics(
+        label: 'Narration speed, ${_speedLabel(_speechSpeed)}',
+        button: true,
+        excludeSemantics: true,
+        child: Chip(
+          avatar: const Icon(Icons.speed, size: 18),
+          label: Text(_speedLabel(_speechSpeed)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransportRow(BuildContext context) {
+    final paused = _narration!.isPaused;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton(
+          tooltip: 'Previous sentence',
+          iconSize: 32,
+          onPressed: () => _handler!.skipToPrevious(),
+          icon: const Icon(Icons.skip_previous),
+        ),
+        IconButton.filled(
+          tooltip: paused ? 'Resume' : 'Pause',
+          iconSize: 36,
+          onPressed: _playPause,
+          icon: Icon(paused ? Icons.play_arrow : Icons.pause,
+              semanticLabel: paused ? 'Resume narration' : 'Pause narration'),
+        ),
+        IconButton(
+          tooltip: 'Next sentence',
+          iconSize: 32,
+          onPressed: () => _handler!.skipToNext(),
+          icon: const Icon(Icons.skip_next),
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'More narration options',
+          icon: const Icon(Icons.more_vert, size: 28),
+          onSelected: (v) {
+            if (v == 'stop') _handler!.stop();
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'stop',
+              child: ListTile(
+                leading: Icon(Icons.stop),
+                title: Text('Stop narration'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
 }

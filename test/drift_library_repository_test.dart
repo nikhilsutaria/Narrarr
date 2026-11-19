@@ -70,6 +70,13 @@ void main() {
         '{"href":"ch1","type":"x"}');
   });
 
+  test('updateProgress persists the book progress fraction (#46)', () async {
+    await repo.add(book('b1'));
+    expect((await repo.all()).single.progress, isNull);
+    await repo.updateProgress('b1', 0.42);
+    expect((await repo.all()).single.progress, closeTo(0.42, 1e-9));
+  });
+
   test('updateLocator on a missing id is a no-op (does not throw)', () async {
     await repo.updateLocator('missing', '{}');
     expect(await repo.all(), isEmpty);
