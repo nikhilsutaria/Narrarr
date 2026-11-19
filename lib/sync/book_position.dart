@@ -21,8 +21,11 @@ typedef BookPosition = ({int spineIndex, int sentenceIndex});
 ///      narratable spine (e.g. cover/nav/footnotes were filtered out) — the
 ///      caller should fall back to its default start.
 ///   2. **Sentence:** match [highlightText] against that chapter's sentences
-///      ([resolveSentenceIndex]); if there's no usable text, estimate from
-///      [progression] (0..1 across the chapter); otherwise sentence 0.
+///      ([resolveSentenceIndex]). A page locator has no text: then the text at
+///      the top of the page, from [anchorTextAt] (#63), is matched with
+///      [resolveAnchorIndex]. Only if neither resolves, estimate from
+///      [progression] (0..1 across the chapter — page-based, so only rough);
+///      otherwise sentence 0.
 ///
 /// Pure and Flutter-free: the reader extracts [locatorHref] / [highlightText] /
 /// [progression] from a flutter_readium `Locator` and passes the plain values.
@@ -31,6 +34,7 @@ BookPosition? resolveBookPosition({
   String? locatorHref,
   String? highlightText,
   double? progression,
+  String? Function(int spineIndex)? anchorTextAt,
 }) {
   if (spine.isEmpty) return null;
 
@@ -49,6 +53,14 @@ BookPosition? resolveBookPosition({
   if (text.isNotEmpty) {
     final i = resolveSentenceIndex(text, sentences);
     if (i >= 0) return (spineIndex: spineIndex, sentenceIndex: i);
+  }
+
+  if (text.isEmpty) {
+    final anchor = anchorTextAt?.call(spineIndex) ?? '';
+    if (anchor.trim().isNotEmpty) {
+      final i = resolveAnchorIndex(anchor, sentences, near: progression);
+      if (i >= 0) return (spineIndex: spineIndex, sentenceIndex: i);
+    }
   }
 
   if (progression != null) {

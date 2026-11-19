@@ -29,6 +29,7 @@ import 'bookmarks_sheet.dart';
 import 'chapter_picker.dart';
 import 'chapter_titles.dart';
 import 'display_epub.dart';
+import 'page_anchor.dart';
 import 'reader_settings.dart';
 import 'reader_settings_sheet.dart';
 
@@ -149,7 +150,25 @@ class _ReaderScreenState extends State<ReaderScreen>
             'again, or pick another voice in Settings → Voices.'),
       ));
     }
+    final active = _active;
+    if (_wasActive && !active) _realignAfterBarCloses();
+    _wasActive = active;
     setState(() {});
+  }
+
+  bool _wasActive = false;
+
+  /// The narration bar going away re-paginates the reader, and Readium keeps
+  /// the page *number* (often landing on the chapter's last page) without
+  /// reporting a new location. Once the layout settles, turn back to the
+  /// sentence narration stopped on, so the page matches where Listen
+  /// continues (#63).
+  void _realignAfterBarCloses() {
+    Future<void>.delayed(const Duration(milliseconds: 700), () async {
+      final c = _narration;
+      if (!mounted || c == null || c.isPlaying || c.sentenceCount == 0) return;
+      await _readium.goToLocator(_sentenceLocator(c.index));
+    });
   }
 
   Future<void> _init() async {
@@ -195,23 +214,26 @@ class _ReaderScreenState extends State<ReaderScreen>
       final displayPath =
           await ensureDisplayCopy(bookId: widget.book.id, sourcePath: path);
       final pub = await _readium.openPublication('file://$displayPath');
-      _pub = pub;
 
       final bytes = await File(path).readAsBytes();
       _spine = await resolveSpine(bytes);
       _bookLength = BookLength([for (final c in _spine) c.sentences]);
       await _reloadPronunciations();
 
+      // Where to begin: a saved position (resume, #10), else the bundled
+      // sample's demo chapter (Book IX), else the first substantive chapter.
+      // Resolved before the reader is built ([_pub] gates it), as it may
+      // re-aim [_initialLocator] (#63).
+      final start = _resolveStart();
+      _pub = pub;
+
       // Persist reading position (debounced) as the reader location changes.
-      _locSub = _readium.onTextLocatorChanged.listen(_onLocatorChanged);
+      _locSub = _readium.onTextLocatorChanged.listen(_onReaderLocator);
       _narration!.fetchNextChapter = _nextChapterSentences;
       _narration!.peekNextChapter = _peekNextChapterSentences;
       _narration!.fetchPreviousChapter = _previousChapterSentences;
       _narration!.onChapterTimed = _persistTimings;
 
-      // Where to begin: a saved position (resume, #10), else the bundled
-      // sample's demo chapter (Book IX), else the first substantive chapter.
-      final start = _resolveStart();
       await _loadChapterAt(start.spineIndex, startSentence: start.sentenceIndex);
 
       setState(() {
@@ -233,13 +255,14 @@ class _ReaderScreenState extends State<ReaderScreen>
 
     final loc = _initialLocator;
     if (loc != null) {
-      final pos = resolveBookPosition(
-        spine: [for (final c in _spine) (hrefHint: c.hrefHint, sentences: c.sentences)],
-        locatorHref: loc.href,
-        highlightText: loc.text?.highlight,
-        progression: loc.locations?.progression,
-      );
-      if (pos != null) return pos;
+      PageAnchor? anchor;
+      final pos = _positionFor(loc, onAnchor: (a) => anchor = a);
+      if (pos != null) {
+        if ((loc.text?.highlight ?? '').trim().isEmpty) {
+          _initialLocator = _openingLocator(loc, pos, anchor);
+        }
+        return pos;
+      }
     }
 
     var spineIndex = 0;
@@ -251,6 +274,58 @@ class _ReaderScreenState extends State<ReaderScreen>
     return (spineIndex: spineIndex, sentenceIndex: 0);
   }
 
+  /// Resolve a reader locator to a narration position (#10). A page locator
+  /// (no text) is resolved through its `cssSelector` — the words at the top of
+  /// the page — before falling back to its rough progression (#63).
+  /// [onAnchor] receives the page anchor when one was found.
+  BookPosition? _positionFor(Locator loc,
+      {void Function(PageAnchor anchor)? onAnchor}) {
+    final selector = loc.locations?.cssSelector;
+    return resolveBookPosition(
+      spine: [
+        for (final c in _spine) (hrefHint: c.hrefHint, sentences: c.sentences)
+      ],
+      locatorHref: loc.href,
+      highlightText: loc.text?.highlight,
+      progression: loc.locations?.progression,
+      anchorTextAt: selector == null
+          ? null
+          : (i) {
+              final a = pageAnchorAt(_spine[i].html, selector);
+              if (a != null) onAnchor?.call(a);
+              return a?.matchText;
+            },
+    );
+  }
+
+  /// The locator to open the reader at, for a saved page locator (#63).
+  /// Readium places a text-less locator by progression, which depends on the
+  /// layout (the narration bar's height changes the page size), so the page
+  /// shown could differ from where Listen starts. Give it text instead: the
+  /// page anchor within its element when narration starts there, else the
+  /// start sentence itself (the same kind of locator narration navigates by).
+  Locator _openingLocator(Locator loc, BookPosition pos, PageAnchor? anchor) {
+    final sentences = _spine[pos.spineIndex].sentences;
+    final progression = loc.locations?.progression;
+    final onAnchor = anchor != null &&
+        resolveAnchorIndex(anchor.matchText, sentences, near: progression) ==
+            pos.sentenceIndex;
+    return Locator(
+      href: loc.href,
+      type: loc.type,
+      title: loc.title,
+      locations: Locations(
+        progression: progression,
+        cssSelector: onAnchor ? anchor.cssSelector : null,
+      ),
+      text: LocatorText(
+        highlight: onAnchor
+            ? anchor.highlight
+            : (sentences.isEmpty ? null : sentences[pos.sentenceIndex]),
+      ),
+    );
+  }
+
   /// Point the narration session at spine chapter [spineIndex], with the
   /// highlight positioned at [startSentence] (not auto-playing). The single
   /// "start at position X" path — used for resume (#10) and chapter jumps
@@ -259,7 +334,12 @@ class _ReaderScreenState extends State<ReaderScreen>
     final pub = _pub;
     if (pub == null) return;
     final chapter = _spine.isEmpty
-        ? (hrefHint: '', sentences: <String>[], paragraphStarts: <int>[])
+        ? (
+            hrefHint: '',
+            sentences: <String>[],
+            paragraphStarts: <int>[],
+            html: '',
+          )
         : _spine[spineIndex.clamp(0, _spine.length - 1)];
     _spineIndex = _spine.isEmpty ? 0 : spineIndex.clamp(0, _spine.length - 1);
     _chapterHref = _hrefFor(pub, chapter.hrefHint);
@@ -401,15 +481,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     }
     final loc = _pendingLocator;
     if (loc != null) {
-      final pos = resolveBookPosition(
-        spine: [
-          for (final ch in _spine)
-            (hrefHint: ch.hrefHint, sentences: ch.sentences)
-        ],
-        locatorHref: loc.href,
-        highlightText: loc.text?.highlight,
-        progression: loc.locations?.progression,
-      );
+      final pos = _positionFor(loc);
       if (pos != null) return pos;
     }
     return (spineIndex: _spineIndex, sentenceIndex: c?.index ?? 0);
@@ -540,6 +612,41 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   // ---- reading position persistence ----
 
+  /// Page count of the chapter as last laid out, to spot re-pagination.
+  int? _lastTotalPages;
+
+  /// Page changes reported by the reader. While a narration session is live
+  /// (playing or paused) the narrated sentence is the reading position: the
+  /// page turns narration makes, or a look at another page while paused, must
+  /// not replace it with a page locator — resume continues from the sentence,
+  /// so reopening must too (#63).
+  ///
+  /// When the reader re-paginates (the narration bar appearing or going away
+  /// resizes it) Readium keeps the page *number*, which now holds other text:
+  /// pressing Listen showed a page or more away from the sentence being read.
+  /// Bring the narrated sentence back into view instead (#63).
+  void _onReaderLocator(Locator loc) {
+    final total = loc.locations?.toJson()['totalPages'];
+    final repaginated =
+        total is int && _lastTotalPages != null && total != _lastTotalPages;
+    if (total is int) _lastTotalPages = total;
+    final c = _narration;
+    if (c != null && c.isPlaying) {
+      if (repaginated && c.sentenceCount > 0) {
+        unawaited(_readium.goToLocator(_sentenceLocator(c.index)));
+      }
+      return;
+    }
+    // Idle right after narration stopped: the last position saved is the
+    // narrated sentence; keep showing it rather than the shifted page.
+    final last = _pendingLocator;
+    if (repaginated && (last?.text?.highlight ?? '').isNotEmpty) {
+      unawaited(_readium.goToLocator(last!));
+      return;
+    }
+    _onLocatorChanged(loc);
+  }
+
   void _onLocatorChanged(Locator loc) {
     if (widget.repository == null) return;
     _pendingLocator = loc;
@@ -569,14 +676,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     if (c != null && c.isPlaying) {
       return length.fractionAt(spineIndex: _spineIndex, sentenceIndex: c.index);
     }
-    final pos = resolveBookPosition(
-      spine: [
-        for (final ch in _spine) (hrefHint: ch.hrefHint, sentences: ch.sentences)
-      ],
-      locatorHref: loc.href,
-      highlightText: loc.text?.highlight,
-      progression: loc.locations?.progression,
-    );
+    final pos = _positionFor(loc);
     if (pos == null) return null;
     return length.fractionAt(
         spineIndex: pos.spineIndex, sentenceIndex: pos.sentenceIndex);
