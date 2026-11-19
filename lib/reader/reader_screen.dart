@@ -150,25 +150,7 @@ class _ReaderScreenState extends State<ReaderScreen>
             'again, or pick another voice in Settings → Voices.'),
       ));
     }
-    final active = _active;
-    if (_wasActive && !active) _realignAfterBarCloses();
-    _wasActive = active;
     setState(() {});
-  }
-
-  bool _wasActive = false;
-
-  /// The narration bar going away re-paginates the reader, and Readium keeps
-  /// the page *number* (often landing on the chapter's last page) without
-  /// reporting a new location. Once the layout settles, turn back to the
-  /// sentence narration stopped on, so the page matches where Listen
-  /// continues (#63).
-  void _realignAfterBarCloses() {
-    Future<void>.delayed(const Duration(milliseconds: 700), () async {
-      final c = _narration;
-      if (!mounted || c == null || c.isPlaying || c.sentenceCount == 0) return;
-      await _readium.goToLocator(_sentenceLocator(c.index));
-    });
   }
 
   Future<void> _init() async {
@@ -621,10 +603,10 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// not replace it with a page locator — resume continues from the sentence,
   /// so reopening must too (#63).
   ///
-  /// When the reader re-paginates (the narration bar appearing or going away
-  /// resizes it) Readium keeps the page *number*, which now holds other text:
-  /// pressing Listen showed a page or more away from the sentence being read.
-  /// Bring the narrated sentence back into view instead (#63).
+  /// When the reader re-paginates (a text-size change, rotation) Readium keeps
+  /// the page *number*, which now holds other text. Bring the narrated
+  /// sentence back into view instead (#63). The narration bar no longer
+  /// resizes the reader (#67), so starting/stopping doesn't trigger this.
   void _onReaderLocator(Locator loc) {
     final total = loc.locations?.toJson()['totalPages'];
     final repaginated =
@@ -887,30 +869,10 @@ class _ReaderScreenState extends State<ReaderScreen>
           onSelectionAction: _onSelectionAction,
         ),
       ),
-      // When narration is active, the bottom bar carries the transport controls;
-      // otherwise a single "Listen" FAB starts it.
-      bottomNavigationBar: _active ? _buildNarrationBar(context) : null,
-      floatingActionButton: _active
-          ? null
-          : FloatingActionButton.extended(
-              // Disabled while preparing: a second tap during a slow first-time
-              // model load would race a concurrent init (#30).
-              onPressed:
-                  ((_narration?.sentenceCount ?? 0) == 0 || _preparingNarrator)
-                      ? null
-                      : _playPause,
-              icon: _preparingNarrator
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.play_arrow),
-              label: Text(
-                _preparingNarrator ? 'Loading voice…' : 'Listen',
-                semanticsLabel: 'Listen — read this chapter aloud',
-              ),
-            ),
+      // The narration bar is always shown — its play button is the Listen
+      // control — so starting or stopping narration never resizes the page
+      // and re-flows the text under the reader (#67).
+      bottomNavigationBar: _buildNarrationBar(context),
     );
   }
 
@@ -1085,7 +1047,9 @@ class _ReaderScreenState extends State<ReaderScreen>
   }
 
   Widget _buildTransportRow(BuildContext context) {
-    final paused = _narration!.isPaused;
+    final c = _narration!;
+    final paused = c.isPaused;
+    final playing = c.isPlaying && !paused;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -1101,11 +1065,30 @@ class _ReaderScreenState extends State<ReaderScreen>
           icon: const Icon(Icons.skip_previous),
         ),
         IconButton.filled(
-          tooltip: paused ? 'Resume' : 'Pause',
+          tooltip: playing ? 'Pause' : (paused ? 'Resume' : 'Listen'),
           iconSize: 36,
-          onPressed: _playPause,
-          icon: Icon(paused ? Icons.play_arrow : Icons.pause,
-              semanticLabel: paused ? 'Resume narration' : 'Pause narration'),
+          // Disabled while preparing: a second tap during a slow first-time
+          // voice load would race a concurrent init (#30).
+          onPressed: (c.sentenceCount == 0 || _preparingNarrator)
+              ? null
+              : _playPause,
+          icon: _preparingNarrator
+              ? const SizedBox.square(
+                  dimension: 36,
+                  child: Padding(
+                    padding: EdgeInsets.all(6),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      semanticsLabel: 'Loading voice',
+                    ),
+                  ),
+                )
+              : Icon(playing ? Icons.pause : Icons.play_arrow,
+                  semanticLabel: playing
+                      ? 'Pause narration'
+                      : (paused
+                          ? 'Resume narration'
+                          : 'Listen — read aloud from here')),
         ),
         IconButton(
           tooltip: 'Next sentence',
@@ -1133,35 +1116,36 @@ class _ReaderScreenState extends State<ReaderScreen>
                 _handler!.stop();
             }
           },
-          itemBuilder: (_) => const [
-            PopupMenuItem(
+          itemBuilder: (_) => [
+            const PopupMenuItem(
               value: 'prevPara',
               child: ListTile(
                 leading: Icon(Icons.vertical_align_top),
                 title: Text('Previous paragraph'),
               ),
             ),
-            PopupMenuItem(
+            const PopupMenuItem(
               value: 'nextPara',
               child: ListTile(
                 leading: Icon(Icons.vertical_align_bottom),
                 title: Text('Next paragraph'),
               ),
             ),
-            PopupMenuItem(
+            const PopupMenuItem(
               value: 'pronounce',
               child: ListTile(
                 leading: Icon(Icons.record_voice_over_outlined),
                 title: Text('Fix pronunciation…'),
               ),
             ),
-            PopupMenuItem(
-              value: 'stop',
-              child: ListTile(
-                leading: Icon(Icons.stop),
-                title: Text('Stop narration'),
+            if (c.isPlaying)
+              const PopupMenuItem(
+                value: 'stop',
+                child: ListTile(
+                  leading: Icon(Icons.stop),
+                  title: Text('Stop narration'),
+                ),
               ),
-            ),
           ],
         ),
       ],
