@@ -85,8 +85,8 @@ class NeuralNarrator implements TtsEngine {
   // pacing normally and 278 not; 180 keeps the large majority of prose
   // sentences whole (fewer prosody resets, #39) while staying well under the
   // measured failure point. Chunk seams no longer have a player cost (#33),
-  // so this trades only rush-risk against intonation continuity — exactly
-  // what the v1.2 A/B listening test (#41) measures.
+  // so this trades only rush-risk against intonation continuity. 180 was
+  // adopted after the v1.2 A/B listening test (#41).
   static const int _maxSynthChars = 180;
 
   @override
