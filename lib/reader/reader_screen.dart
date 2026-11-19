@@ -11,8 +11,10 @@ import '../library/drift/library_database.dart';
 import '../a11y/a11y_policy.dart';
 import '../library/library_repository.dart';
 import '../narration/narration_audio_handler.dart';
-import '../narration/switchable_tts_engine.dart';
-import '../narration/voice_catalog.dart';
+import '../narration/pronunciation.dart';
+import '../narration/pronunciation_dialog.dart';
+import '../narration/pronunciation_repository.dart';
+import '../narration/text_normalizer.dart';
 import '../narration/voice_settings.dart';
 import '../sync/book_position.dart';
 import '../sync/narration_controller.dart';
@@ -46,6 +48,7 @@ class ReaderScreen extends StatefulWidget {
     this.repository,
     this.timingRepository,
     this.bookmarkRepository,
+    this.pronunciationRepository,
   });
 
   final Book book;
@@ -59,6 +62,9 @@ class ReaderScreen extends StatefulWidget {
 
   /// Bookmarks store (#48); defaults to the shared app database.
   final BookmarkRepository? bookmarkRepository;
+
+  /// Pronunciation fixes (#47); defaults to the shared app database.
+  final PronunciationRepository? pronunciationRepository;
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -83,6 +89,8 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   TimingRepository? _timings;
   BookmarkRepository? _bookmarks;
+  PronunciationRepository? _pronunciations;
+  List<PronunciationEntry> _pronunciationEntries = const [];
   // The active voice, loaded from VoiceSettings in [_applyVoiceSelection]
   // (flavor default: system TTS in prod, bundled Amy in QA). Keys the timing
   // cache and drives engine/voice selection.
@@ -153,6 +161,8 @@ class _ReaderScreenState extends State<ReaderScreen>
     _handler!.sleepTimer.addListener(_onNarrationChanged);
     _timings = widget.timingRepository ?? TimingRepository(appDatabase());
     _bookmarks = widget.bookmarkRepository ?? BookmarkRepository(appDatabase());
+    _pronunciations = widget.pronunciationRepository ??
+        PronunciationRepository(appDatabase());
     // Point the engine at the user's persisted selection before opening.
     await _applyVoiceSelection();
     await _open();
@@ -165,31 +175,11 @@ class _ReaderScreenState extends State<ReaderScreen>
   Future<void> _applyVoiceSelection() async {
     final h = _handler;
     if (h == null) return;
-    final vs = await VoiceSettingsStore().load();
+    final vs = await h.applyVoiceSettings();
+    // Mirror for the UI and the timing-cache key.
     _voiceId = vs.activeVoiceId;
-    final engine = h.controller.engine;
-    if (engine is SwitchableTtsEngine) {
-      if (_voiceId == kSystemVoiceId) {
-        await engine.useSystem();
-      } else {
-        await engine
-            .useNeural(VoiceCatalog.byId(_voiceId) ?? VoiceCatalog.amyLow);
-      }
-    } else {
-      // Injected test engines aren't switchable; still forward the voice.
-      await engine
-          .setVoiceIfNeeded(VoiceCatalog.byId(_voiceId) ?? VoiceCatalog.amyLow);
-    }
-    // Keep the timing-cache key in step with the selection mid-session.
-    h.controller.voiceId = _voiceId;
-    // Apply the persisted narration speed (#34) to both engines before play.
     _speechSpeed = vs.speechSpeed;
-    h.controller.speechSpeed = vs.speechSpeed;
-    await engine.setSpeed(vs.speechSpeed);
-    // Listening preferences (#45).
     _skipSeconds = vs.skipSeconds;
-    h.skipInterval = Duration(seconds: vs.skipSeconds);
-    h.controller.autoRewind = vs.autoRewind;
   }
 
   Future<void> _open() async {
@@ -210,6 +200,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       final bytes = await File(path).readAsBytes();
       _spine = await resolveSpine(bytes);
       _bookLength = BookLength([for (final c in _spine) c.sentences]);
+      await _reloadPronunciations();
 
       // Persist reading position (debounced) as the reader location changes.
       _locSub = _readium.onTextLocatorChanged.listen(_onLocatorChanged);
@@ -314,6 +305,87 @@ class _ReaderScreenState extends State<ReaderScreen>
       hrefHints: [for (final c in _spine) c.hrefHint],
       toc: toc,
     );
+  }
+
+  // ---- pronunciation (#47) ----
+
+  /// Load this book's (and global) fixes into the speech pipeline: the
+  /// dictionary runs first, then the normaliser; highlighting is unaffected.
+  Future<void> _reloadPronunciations() async {
+    final repo = _pronunciations;
+    final c = _narration;
+    if (repo == null || c == null) return;
+    try {
+      _pronunciationEntries = await repo.forBook(widget.book.id);
+    } catch (e) {
+      debugPrint('[reader] pronunciation load failed: $e');
+      _pronunciationEntries = const [];
+    }
+    final dict = PronunciationDictionary(_pronunciationEntries);
+    const normalizer = TextNormalizer();
+    c.normalizeForSpeech = dict.isEmpty
+        ? normalizer.normalize
+        : (s) => normalizer.normalize(dict.apply(s));
+  }
+
+  Future<void> _previewSpeech(String text) async {
+    try {
+      await _handler?.previewSpeech(text);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Couldn’t play the preview with the current voice.')));
+    }
+  }
+
+  /// Teach the voice how to say [word] (#47).
+  Future<void> _fixPronunciation(String word) async {
+    final repo = _pronunciations;
+    if (repo == null) return;
+    final w = word.trim();
+    final existing = _pronunciationEntries
+        .where((e) => e.word.toLowerCase() == w.toLowerCase())
+        .fold<PronunciationEntry?>(
+            null, (best, e) => best == null || e.bookId != null ? e : best);
+    final edit = await showPronunciationDialog(
+      context,
+      word: w,
+      replacement: existing?.replacement ?? '',
+      caseSensitive: existing?.caseSensitive ?? false,
+      thisBookOnly: existing == null || existing.bookId != null,
+      bookTitle: widget.book.title,
+      onPreview: _previewSpeech,
+    );
+    if (edit == null) return;
+    await repo.save(
+      word: edit.word,
+      replacement: edit.replacement,
+      caseSensitive: edit.caseSensitive,
+      bookId: edit.thisBookOnly ? widget.book.id : null,
+      nowMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    await _reloadPronunciations();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('“${edit.word}” will be read as “${edit.replacement}”.')));
+  }
+
+  /// ⋯ › Fix pronunciation: pick the word from the sentence being read.
+  Future<void> _fixPronunciationFromSentence() async {
+    final c = _narration;
+    if (c == null || c.sentenceCount == 0) return;
+    // Hold narration so the offered words match the highlighted sentence.
+    if (c.isPlaying && !c.isPaused) await _handler!.pause();
+    if (!mounted) return;
+    final word = await showWordPicker(context, c.sentenceTextAt(c.index));
+    if (word != null && mounted) await _fixPronunciation(word);
+  }
+
+  void _onSelectionAction(SelectionActionEvent e) {
+    if (e.actionId != 'pronounce') return;
+    final text = (e.selectedText ?? e.locator.text?.highlight ?? '').trim();
+    if (text.isEmpty || text.length > 60) return;
+    _fixPronunciation(text);
   }
 
   // ---- bookmarks (#48) ----
@@ -562,7 +634,16 @@ class _ReaderScreenState extends State<ReaderScreen>
     final i = resolveSentenceIndex(selected, [
       for (var k = 0; k < c.sentenceCount; k++) c.sentenceTextAt(k),
     ]);
-    if (i >= 0) await _handler!.seekToSentence(i);
+    if (i < 0) return;
+    if (c.isPlaying) {
+      await _handler!.seekToSentence(i);
+    } else {
+      // Idle: just move the start point (and highlight it) — Listen starts
+      // there. Auto-playing here went through an engine that may not be
+      // initialised yet ("speak() called before init()"), and selecting a
+      // word to fix its pronunciation (#47) shouldn't start narration.
+      await c.moveToSentence(i);
+    }
   }
 
   // ---- settings ----
@@ -698,6 +779,11 @@ class _ReaderScreenState extends State<ReaderScreen>
           loadingWidget: const Center(child: CircularProgressIndicator()),
           // Tap-to-seek: selecting a sentence jumps narration to it.
           onTextSelected: _seekToSelection,
+          // "Fix pronunciation" in the text-selection menu (#47).
+          selectionActions: const [
+            SelectionAction(id: 'pronounce', title: 'Fix pronunciation'),
+          ],
+          onSelectionAction: _onSelectionAction,
         ),
       ),
       // When narration is active, the bottom bar carries the transport controls;
@@ -940,6 +1026,8 @@ class _ReaderScreenState extends State<ReaderScreen>
                 _narration?.skipParagraph(-1);
               case 'nextPara':
                 _narration?.skipParagraph(1);
+              case 'pronounce':
+                _fixPronunciationFromSentence();
               case 'stop':
                 _handler!.stop();
             }
@@ -957,6 +1045,13 @@ class _ReaderScreenState extends State<ReaderScreen>
               child: ListTile(
                 leading: Icon(Icons.vertical_align_bottom),
                 title: Text('Next paragraph'),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'pronounce',
+              child: ListTile(
+                leading: Icon(Icons.record_voice_over_outlined),
+                title: Text('Fix pronunciation…'),
               ),
             ),
             PopupMenuItem(

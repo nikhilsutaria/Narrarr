@@ -1425,6 +1425,420 @@ class BookmarksCompanion extends UpdateCompanion<BookmarkRow> {
   }
 }
 
+class $PronunciationsTable extends Pronunciations
+    with TableInfo<$PronunciationsTable, PronunciationRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PronunciationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _wordMeta = const VerificationMeta('word');
+  @override
+  late final GeneratedColumn<String> word = GeneratedColumn<String>(
+    'word',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _replacementMeta = const VerificationMeta(
+    'replacement',
+  );
+  @override
+  late final GeneratedColumn<String> replacement = GeneratedColumn<String>(
+    'replacement',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _caseSensitiveMeta = const VerificationMeta(
+    'caseSensitive',
+  );
+  @override
+  late final GeneratedColumn<bool> caseSensitive = GeneratedColumn<bool>(
+    'case_sensitive',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("case_sensitive" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMsMeta = const VerificationMeta(
+    'createdAtMs',
+  );
+  @override
+  late final GeneratedColumn<int> createdAtMs = GeneratedColumn<int>(
+    'created_at_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    bookId,
+    word,
+    replacement,
+    caseSensitive,
+    createdAtMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pronunciations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PronunciationRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    }
+    if (data.containsKey('word')) {
+      context.handle(
+        _wordMeta,
+        word.isAcceptableOrUnknown(data['word']!, _wordMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_wordMeta);
+    }
+    if (data.containsKey('replacement')) {
+      context.handle(
+        _replacementMeta,
+        replacement.isAcceptableOrUnknown(
+          data['replacement']!,
+          _replacementMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_replacementMeta);
+    }
+    if (data.containsKey('case_sensitive')) {
+      context.handle(
+        _caseSensitiveMeta,
+        caseSensitive.isAcceptableOrUnknown(
+          data['case_sensitive']!,
+          _caseSensitiveMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at_ms')) {
+      context.handle(
+        _createdAtMsMeta,
+        createdAtMs.isAcceptableOrUnknown(
+          data['created_at_ms']!,
+          _createdAtMsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PronunciationRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PronunciationRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      ),
+      word: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}word'],
+      )!,
+      replacement: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}replacement'],
+      )!,
+      caseSensitive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}case_sensitive'],
+      )!,
+      createdAtMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $PronunciationsTable createAlias(String alias) {
+    return $PronunciationsTable(attachedDatabase, alias);
+  }
+}
+
+class PronunciationRow extends DataClass
+    implements Insertable<PronunciationRow> {
+  final int id;
+  final String? bookId;
+  final String word;
+  final String replacement;
+  final bool caseSensitive;
+  final int createdAtMs;
+  const PronunciationRow({
+    required this.id,
+    this.bookId,
+    required this.word,
+    required this.replacement,
+    required this.caseSensitive,
+    required this.createdAtMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || bookId != null) {
+      map['book_id'] = Variable<String>(bookId);
+    }
+    map['word'] = Variable<String>(word);
+    map['replacement'] = Variable<String>(replacement);
+    map['case_sensitive'] = Variable<bool>(caseSensitive);
+    map['created_at_ms'] = Variable<int>(createdAtMs);
+    return map;
+  }
+
+  PronunciationsCompanion toCompanion(bool nullToAbsent) {
+    return PronunciationsCompanion(
+      id: Value(id),
+      bookId: bookId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bookId),
+      word: Value(word),
+      replacement: Value(replacement),
+      caseSensitive: Value(caseSensitive),
+      createdAtMs: Value(createdAtMs),
+    );
+  }
+
+  factory PronunciationRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PronunciationRow(
+      id: serializer.fromJson<int>(json['id']),
+      bookId: serializer.fromJson<String?>(json['bookId']),
+      word: serializer.fromJson<String>(json['word']),
+      replacement: serializer.fromJson<String>(json['replacement']),
+      caseSensitive: serializer.fromJson<bool>(json['caseSensitive']),
+      createdAtMs: serializer.fromJson<int>(json['createdAtMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'bookId': serializer.toJson<String?>(bookId),
+      'word': serializer.toJson<String>(word),
+      'replacement': serializer.toJson<String>(replacement),
+      'caseSensitive': serializer.toJson<bool>(caseSensitive),
+      'createdAtMs': serializer.toJson<int>(createdAtMs),
+    };
+  }
+
+  PronunciationRow copyWith({
+    int? id,
+    Value<String?> bookId = const Value.absent(),
+    String? word,
+    String? replacement,
+    bool? caseSensitive,
+    int? createdAtMs,
+  }) => PronunciationRow(
+    id: id ?? this.id,
+    bookId: bookId.present ? bookId.value : this.bookId,
+    word: word ?? this.word,
+    replacement: replacement ?? this.replacement,
+    caseSensitive: caseSensitive ?? this.caseSensitive,
+    createdAtMs: createdAtMs ?? this.createdAtMs,
+  );
+  PronunciationRow copyWithCompanion(PronunciationsCompanion data) {
+    return PronunciationRow(
+      id: data.id.present ? data.id.value : this.id,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      word: data.word.present ? data.word.value : this.word,
+      replacement: data.replacement.present
+          ? data.replacement.value
+          : this.replacement,
+      caseSensitive: data.caseSensitive.present
+          ? data.caseSensitive.value
+          : this.caseSensitive,
+      createdAtMs: data.createdAtMs.present
+          ? data.createdAtMs.value
+          : this.createdAtMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PronunciationRow(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('word: $word, ')
+          ..write('replacement: $replacement, ')
+          ..write('caseSensitive: $caseSensitive, ')
+          ..write('createdAtMs: $createdAtMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, bookId, word, replacement, caseSensitive, createdAtMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PronunciationRow &&
+          other.id == this.id &&
+          other.bookId == this.bookId &&
+          other.word == this.word &&
+          other.replacement == this.replacement &&
+          other.caseSensitive == this.caseSensitive &&
+          other.createdAtMs == this.createdAtMs);
+}
+
+class PronunciationsCompanion extends UpdateCompanion<PronunciationRow> {
+  final Value<int> id;
+  final Value<String?> bookId;
+  final Value<String> word;
+  final Value<String> replacement;
+  final Value<bool> caseSensitive;
+  final Value<int> createdAtMs;
+  const PronunciationsCompanion({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.word = const Value.absent(),
+    this.replacement = const Value.absent(),
+    this.caseSensitive = const Value.absent(),
+    this.createdAtMs = const Value.absent(),
+  });
+  PronunciationsCompanion.insert({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    required String word,
+    required String replacement,
+    this.caseSensitive = const Value.absent(),
+    required int createdAtMs,
+  }) : word = Value(word),
+       replacement = Value(replacement),
+       createdAtMs = Value(createdAtMs);
+  static Insertable<PronunciationRow> custom({
+    Expression<int>? id,
+    Expression<String>? bookId,
+    Expression<String>? word,
+    Expression<String>? replacement,
+    Expression<bool>? caseSensitive,
+    Expression<int>? createdAtMs,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bookId != null) 'book_id': bookId,
+      if (word != null) 'word': word,
+      if (replacement != null) 'replacement': replacement,
+      if (caseSensitive != null) 'case_sensitive': caseSensitive,
+      if (createdAtMs != null) 'created_at_ms': createdAtMs,
+    });
+  }
+
+  PronunciationsCompanion copyWith({
+    Value<int>? id,
+    Value<String?>? bookId,
+    Value<String>? word,
+    Value<String>? replacement,
+    Value<bool>? caseSensitive,
+    Value<int>? createdAtMs,
+  }) {
+    return PronunciationsCompanion(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      word: word ?? this.word,
+      replacement: replacement ?? this.replacement,
+      caseSensitive: caseSensitive ?? this.caseSensitive,
+      createdAtMs: createdAtMs ?? this.createdAtMs,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (word.present) {
+      map['word'] = Variable<String>(word.value);
+    }
+    if (replacement.present) {
+      map['replacement'] = Variable<String>(replacement.value);
+    }
+    if (caseSensitive.present) {
+      map['case_sensitive'] = Variable<bool>(caseSensitive.value);
+    }
+    if (createdAtMs.present) {
+      map['created_at_ms'] = Variable<int>(createdAtMs.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PronunciationsCompanion(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('word: $word, ')
+          ..write('replacement: $replacement, ')
+          ..write('caseSensitive: $caseSensitive, ')
+          ..write('createdAtMs: $createdAtMs')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$LibraryDatabase extends GeneratedDatabase {
   _$LibraryDatabase(QueryExecutor e) : super(e);
   $LibraryDatabaseManager get managers => $LibraryDatabaseManager(this);
@@ -1433,6 +1847,7 @@ abstract class _$LibraryDatabase extends GeneratedDatabase {
     this,
   );
   late final $BookmarksTable bookmarks = $BookmarksTable(this);
+  late final $PronunciationsTable pronunciations = $PronunciationsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1441,6 +1856,7 @@ abstract class _$LibraryDatabase extends GeneratedDatabase {
     books,
     sentenceTimings,
     bookmarks,
+    pronunciations,
   ];
 }
 
@@ -2172,6 +2588,235 @@ typedef $$BookmarksTableProcessedTableManager =
       BookmarkRow,
       PrefetchHooks Function()
     >;
+typedef $$PronunciationsTableCreateCompanionBuilder =
+    PronunciationsCompanion Function({
+      Value<int> id,
+      Value<String?> bookId,
+      required String word,
+      required String replacement,
+      Value<bool> caseSensitive,
+      required int createdAtMs,
+    });
+typedef $$PronunciationsTableUpdateCompanionBuilder =
+    PronunciationsCompanion Function({
+      Value<int> id,
+      Value<String?> bookId,
+      Value<String> word,
+      Value<String> replacement,
+      Value<bool> caseSensitive,
+      Value<int> createdAtMs,
+    });
+
+class $$PronunciationsTableFilterComposer
+    extends Composer<_$LibraryDatabase, $PronunciationsTable> {
+  $$PronunciationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get word => $composableBuilder(
+    column: $table.word,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get replacement => $composableBuilder(
+    column: $table.replacement,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get caseSensitive => $composableBuilder(
+    column: $table.caseSensitive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PronunciationsTableOrderingComposer
+    extends Composer<_$LibraryDatabase, $PronunciationsTable> {
+  $$PronunciationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get word => $composableBuilder(
+    column: $table.word,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get replacement => $composableBuilder(
+    column: $table.replacement,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get caseSensitive => $composableBuilder(
+    column: $table.caseSensitive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PronunciationsTableAnnotationComposer
+    extends Composer<_$LibraryDatabase, $PronunciationsTable> {
+  $$PronunciationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<String> get word =>
+      $composableBuilder(column: $table.word, builder: (column) => column);
+
+  GeneratedColumn<String> get replacement => $composableBuilder(
+    column: $table.replacement,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get caseSensitive => $composableBuilder(
+    column: $table.caseSensitive,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => column,
+  );
+}
+
+class $$PronunciationsTableTableManager
+    extends
+        RootTableManager<
+          _$LibraryDatabase,
+          $PronunciationsTable,
+          PronunciationRow,
+          $$PronunciationsTableFilterComposer,
+          $$PronunciationsTableOrderingComposer,
+          $$PronunciationsTableAnnotationComposer,
+          $$PronunciationsTableCreateCompanionBuilder,
+          $$PronunciationsTableUpdateCompanionBuilder,
+          (
+            PronunciationRow,
+            BaseReferences<
+              _$LibraryDatabase,
+              $PronunciationsTable,
+              PronunciationRow
+            >,
+          ),
+          PronunciationRow,
+          PrefetchHooks Function()
+        > {
+  $$PronunciationsTableTableManager(
+    _$LibraryDatabase db,
+    $PronunciationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PronunciationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PronunciationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PronunciationsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> bookId = const Value.absent(),
+                Value<String> word = const Value.absent(),
+                Value<String> replacement = const Value.absent(),
+                Value<bool> caseSensitive = const Value.absent(),
+                Value<int> createdAtMs = const Value.absent(),
+              }) => PronunciationsCompanion(
+                id: id,
+                bookId: bookId,
+                word: word,
+                replacement: replacement,
+                caseSensitive: caseSensitive,
+                createdAtMs: createdAtMs,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> bookId = const Value.absent(),
+                required String word,
+                required String replacement,
+                Value<bool> caseSensitive = const Value.absent(),
+                required int createdAtMs,
+              }) => PronunciationsCompanion.insert(
+                id: id,
+                bookId: bookId,
+                word: word,
+                replacement: replacement,
+                caseSensitive: caseSensitive,
+                createdAtMs: createdAtMs,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PronunciationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LibraryDatabase,
+      $PronunciationsTable,
+      PronunciationRow,
+      $$PronunciationsTableFilterComposer,
+      $$PronunciationsTableOrderingComposer,
+      $$PronunciationsTableAnnotationComposer,
+      $$PronunciationsTableCreateCompanionBuilder,
+      $$PronunciationsTableUpdateCompanionBuilder,
+      (
+        PronunciationRow,
+        BaseReferences<
+          _$LibraryDatabase,
+          $PronunciationsTable,
+          PronunciationRow
+        >,
+      ),
+      PronunciationRow,
+      PrefetchHooks Function()
+    >;
 
 class $LibraryDatabaseManager {
   final _$LibraryDatabase _db;
@@ -2182,4 +2827,6 @@ class $LibraryDatabaseManager {
       $$SentenceTimingsTableTableManager(_db, _db.sentenceTimings);
   $$BookmarksTableTableManager get bookmarks =>
       $$BookmarksTableTableManager(_db, _db.bookmarks);
+  $$PronunciationsTableTableManager get pronunciations =>
+      $$PronunciationsTableTableManager(_db, _db.pronunciations);
 }

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:narrarr/narration/narration_audio_handler.dart';
+import 'package:narrarr/narration/voice_settings.dart';
 import 'package:narrarr/sync/narration_controller.dart';
 
 import 'support/fake_tts_engine.dart';
@@ -59,6 +61,49 @@ void main() {
         sentences: ['a', 'b', 'c'],
         paragraphStarts: const [0, 2]);
     expect(controller.paragraphStarts, [0, 2]);
+  });
+
+  VoiceSettingsStore tempStore(String json) {
+    final dir = Directory.systemTemp.createTempSync('vs');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    return VoiceSettingsStore(
+        file: File('${dir.path}/voice_settings.json')..writeAsStringSync(json));
+  }
+
+  test('applyVoiceSettings applies speed and listening prefs (#45, #34)',
+      () async {
+    final fake = FakeTtsEngine();
+    final controller = NarrationController(engine: fake);
+    final handler = NarrationAudioHandler(controller);
+    final vs = await handler.applyVoiceSettings(
+        store: tempStore('{"speechSpeed": 1.5, "skipSeconds": 15, '
+            '"autoRewind": false}'));
+    expect(vs.speechSpeed, 1.5);
+    expect(fake.speed, 1.5);
+    expect(controller.speechSpeed, 1.5);
+    expect(handler.skipInterval, const Duration(seconds: 15));
+    expect(controller.autoRewind, isFalse);
+  });
+
+  test('previewSpeech stops narration, then speaks the normalized text (#47)',
+      () async {
+    final fake = FakeTtsEngine();
+    final controller = NarrationController(engine: fake);
+    final handler = NarrationAudioHandler(controller);
+    handler.loadChapter(bookId: 'b', title: 'B', sentences: ['one', 'two']);
+    unawaited(handler.play());
+    await pumpEventQueue();
+    expect(controller.isPlaying, isTrue);
+
+    unawaited(handler.previewSpeech('her-MY-oh-nee costs \$5',
+        store: tempStore('{}')));
+    // Settings load is real file IO, not just microtasks.
+    for (var i = 0; i < 50 && fake.spoken.length < 2; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(controller.isPlaying, isFalse);
+    expect(fake.spoken.last, 'her-MY-oh-nee costs five dollars');
+    fake.finishCurrent();
   });
 
   test('controls swap play<->pause with playing state', () async {

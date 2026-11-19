@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../build_flavor.dart';
 import '../reader/display_epub.dart';
+import '../narration/pronunciation_repository.dart';
 import 'bookmark_repository.dart';
 import 'drift/library_database.dart';
 import '../reader/reader_screen.dart';
@@ -115,12 +116,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
       ),
     ));
     // Once the Undo window has passed, drop the book's derived data: its
-    // reader display copy (#18) and bookmarks (#48).
+    // reader display copy (#18), bookmarks (#48) and book-only
+    // pronunciations (#47).
     final reason = await snack.closed;
     if (reason == SnackBarClosedReason.action) return;
     await deleteDisplayCopies(book.id);
     try {
       await BookmarkRepository(appDatabase()).deleteForBook(book.id);
+      await PronunciationRepository(appDatabase()).deleteForBook(book.id);
     } catch (e) {
       debugPrint('[library] bookmark cleanup failed: $e');
     }

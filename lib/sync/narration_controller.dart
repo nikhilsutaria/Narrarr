@@ -332,6 +332,11 @@ class NarrationController extends ChangeNotifier {
     return target.clamp(0, _sentences.length - 1);
   }
 
+  /// Move to sentence [index] of the current chapter without changing the
+  /// session state (playing keeps playing from there; idle just moves the
+  /// highlight / start point).
+  Future<void> moveToSentence(int index) => _moveTo(() async => index);
+
   /// Move [delta] sentences from the current index (within the chapter).
   Future<void> skipSentence(int delta) =>
       _moveTo(() async => _index + delta);

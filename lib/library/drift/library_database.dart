@@ -56,17 +56,30 @@ class Bookmarks extends Table {
   IntColumn get createdAtMs => integer()();
 }
 
+/// User pronunciation fixes (#47; schema v5). A null [bookId] applies to
+/// every book.
+@DataClassName('PronunciationRow')
+class Pronunciations extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get bookId => text().nullable()();
+  TextColumn get word => text()();
+  TextColumn get replacement => text()();
+  BoolColumn get caseSensitive =>
+      boolean().withDefault(const Constant(false))();
+  IntColumn get createdAtMs => integer()();
+}
+
 /// The app's single database connection. Every repository shares it — two
 /// connections to the same SQLite file race (drift warns about exactly this).
 LibraryDatabase appDatabase() => _appDatabase ??= LibraryDatabase();
 LibraryDatabase? _appDatabase;
 
-@DriftDatabase(tables: [Books, SentenceTimings, Bookmarks])
+@DriftDatabase(tables: [Books, SentenceTimings, Bookmarks, Pronunciations])
 class LibraryDatabase extends _$LibraryDatabase {
   LibraryDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -75,6 +88,7 @@ class LibraryDatabase extends _$LibraryDatabase {
           if (from < 2) await m.createTable(sentenceTimings);
           if (from < 3) await m.addColumn(books, books.progress);
           if (from < 4) await m.createTable(bookmarks);
+          if (from < 5) await m.createTable(pronunciations);
         },
       );
 

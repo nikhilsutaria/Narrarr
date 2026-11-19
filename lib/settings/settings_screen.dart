@@ -4,6 +4,7 @@ import '../narration/voice_manager.dart';
 import '../narration/voice_screen.dart';
 import '../narration/voice_settings.dart';
 import 'listening_settings_screen.dart';
+import 'pronunciations_screen.dart';
 
 /// App settings / about. Entry point to voice management and the privacy note.
 class SettingsScreen extends StatelessWidget {
@@ -33,6 +34,14 @@ class SettingsScreen extends StatelessWidget {
             subtitle: const Text('Skip interval and rewinding after a pause'),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => ListeningSettingsScreen(store: VoiceSettingsStore()),
+            )),
+          ),
+          ListTile(
+            leading: const Icon(Icons.spellcheck),
+            title: const Text('Pronunciations'),
+            subtitle: const Text('Words you’ve taught the voice to say'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const PronunciationsScreen(),
             )),
           ),
           const ListTile(

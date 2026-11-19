@@ -189,4 +189,12 @@ void main() {
       await c.stop();
     });
   });
+
+  test('moveToSentence while idle repositions without starting playback', () async {
+    c.setSentences(_chapter('a', 10));
+    await c.moveToSentence(6);
+    expect(c.index, 6);
+    expect(c.isPlaying, isFalse);
+    expect(fake.spoken, isEmpty);
+  });
 }

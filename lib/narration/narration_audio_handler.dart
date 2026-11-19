@@ -6,6 +6,9 @@ import '../sync/sleep_timer.dart';
 import 'neural_narrator.dart';
 import 'switchable_tts_engine.dart';
 import 'system_narrator.dart';
+import 'text_normalizer.dart';
+import 'voice_catalog.dart';
+import 'voice_settings.dart';
 import 'voice_manager.dart';
 
 /// Bridges the sentence-based [NarrationController] to `audio_service`, so
@@ -81,6 +84,45 @@ class NarrationAudioHandler extends BaseAudioHandler {
 
   /// Seek narration to a specific sentence (tap-to-seek from the reader).
   Future<void> seekToSentence(int index) => controller.seekToSentence(index);
+
+  /// Re-read the persisted voice settings and apply them: route the engine to
+  /// the system TTS (#15) or a neural voice, and apply speed (#34) and the
+  /// listening preferences (#45). Called at reader open, on every Listen, and
+  /// before a pronunciation preview, so changes made in Settings apply
+  /// without reopening the book (#30).
+  Future<VoiceSettings> applyVoiceSettings({VoiceSettingsStore? store}) async {
+    final vs = await (store ?? VoiceSettingsStore()).load();
+    final id = vs.activeVoiceId;
+    final engine = controller.engine;
+    if (engine is SwitchableTtsEngine) {
+      if (id == kSystemVoiceId) {
+        await engine.useSystem();
+      } else {
+        await engine.useNeural(VoiceCatalog.byId(id) ?? VoiceCatalog.amyLow);
+      }
+    } else {
+      // Injected test engines aren't switchable; still forward the voice.
+      await engine
+          .setVoiceIfNeeded(VoiceCatalog.byId(id) ?? VoiceCatalog.amyLow);
+    }
+    // Keep the timing-cache key in step with the selection mid-session.
+    controller.voiceId = id;
+    controller.speechSpeed = vs.speechSpeed;
+    await engine.setSpeed(vs.speechSpeed);
+    skipInterval = Duration(seconds: vs.skipSeconds);
+    controller.autoRewind = vs.autoRewind;
+    return vs;
+  }
+
+  /// Speak [text] once with the current voice — the pronunciation preview
+  /// (#47). Stops any narration first (the session's position is kept), so
+  /// the preview never interleaves with a paused utterance.
+  Future<void> previewSpeech(String text, {VoiceSettingsStore? store}) async {
+    if (controller.isPlaying) await stop();
+    await applyVoiceSettings(store: store);
+    await controller.engine.init();
+    await controller.engine.speak(const TextNormalizer().normalize(text));
+  }
 
   /// Time-skip interval for rewind / fast-forward (#45); the reader applies
   /// the user's setting.
