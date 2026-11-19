@@ -55,7 +55,7 @@ class SettingsScreen extends StatelessWidget {
           const AboutListTile(
             icon: Icon(Icons.info_outline),
             applicationName: 'Narrarr',
-            applicationVersion: '1.1.0',
+            applicationVersion: '1.3.0',
             aboutBoxChildren: [
               Text(
                   'Immersion reading for your own EPUBs. Fully offline, no '
