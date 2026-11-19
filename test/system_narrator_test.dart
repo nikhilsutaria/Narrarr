@@ -7,6 +7,7 @@ class FakeSystemTts implements SystemTts {
   final List<String> spoken = [];
   int stopCalls = 0;
   double? volume;
+  double? rate;
   void Function()? _complete;
   void Function()? _cancel;
 
@@ -23,6 +24,9 @@ class FakeSystemTts implements SystemTts {
 
   @override
   Future<void> setVolume(double v) async => volume = v;
+
+  @override
+  Future<void> setSpeechRate(double r) async => rate = r;
 
   @override
   set onComplete(void Function() handler) => _complete = handler;
@@ -102,5 +106,17 @@ void main() {
     expect(tts.volume, 1.0);
     await n.setVolume(-1.0);
     expect(tts.volume, 0.0);
+  });
+
+  test('speed maps to the platform rate scale (0.5 = normal) (#34)', () async {
+    await n.setSpeed(1.0);
+    expect(tts.rate, 0.5);
+    await n.setSpeed(1.5);
+    expect(tts.rate, 0.75);
+    // The platform scale tops out at 1.0 (~2×): 3× clamps rather than breaks.
+    await n.setSpeed(3.0);
+    expect(tts.rate, 1.0);
+    await n.setSpeed(0.1); // below the supported floor clamps to 0.5×
+    expect(tts.rate, 0.25);
   });
 }

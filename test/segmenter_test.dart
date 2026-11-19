@@ -52,14 +52,14 @@ void main() {
     );
   });
 
-  test('drops the chapter header and joins verse lines (carried from v0.1)', () {
+  test('drops the chapter header; verse lines read line-by-line (#37)', () {
     expect(
       seg.sentencesFromHtml(
         '<header><h2>Book IX</h2></header>'
         '<p>Sing, O Muse,<br/>of the man.</p>'
         '<p>He sailed far. And wide!</p>',
       ),
-      ['Sing, O Muse, of the man.', 'He sailed far.', 'And wide!'],
+      ['Sing, O Muse,', 'of the man.', 'He sailed far.', 'And wide!'],
     );
   });
 

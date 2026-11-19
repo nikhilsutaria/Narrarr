@@ -38,12 +38,18 @@ class TtsSynthIsolate {
     required String tokens,
     required String dataDir,
     int numThreads = 2,
+    double noiseScale = 0.667,
+    double lengthScale = 1.0,
+    double noiseW = 0.8,
   }) {
     return _starting ??= _start(
       model: model,
       tokens: tokens,
       dataDir: dataDir,
       numThreads: numThreads,
+      noiseScale: noiseScale,
+      lengthScale: lengthScale,
+      noiseW: noiseW,
     );
   }
 
@@ -52,6 +58,9 @@ class TtsSynthIsolate {
     required String tokens,
     required String dataDir,
     required int numThreads,
+    required double noiseScale,
+    required double lengthScale,
+    required double noiseW,
   }) async {
     if (_disposed) throw StateError('TtsSynthIsolate already disposed');
     _fromIsolate = ReceivePort()..listen(_onMessage);
@@ -65,6 +74,9 @@ class TtsSynthIsolate {
         tokens,
         dataDir,
         numThreads,
+        noiseScale,
+        lengthScale,
+        noiseW,
       ),
       errorsAreFatal: false,
       debugName: 'TtsSynthIsolate',
@@ -152,10 +164,15 @@ class TtsSynthIsolate {
 
       final config = so.OfflineTtsConfig(
         model: so.OfflineTtsModelConfig(
+          // Per-voice prosody parameters from the voice's own .onnx.json (#38)
+          // — the voice author's tuning, not the library defaults.
           vits: so.OfflineTtsVitsModelConfig(
             model: args.model,
             tokens: args.tokens,
             dataDir: args.dataDir,
+            noiseScale: args.noiseScale,
+            noiseScaleW: args.noiseW,
+            lengthScale: args.lengthScale,
           ),
           numThreads: args.numThreads,
           debug: false,
@@ -197,8 +214,12 @@ class _SpawnArgs {
   final String tokens;
   final String dataDir;
   final int numThreads;
+  final double noiseScale;
+  final double lengthScale;
+  final double noiseW;
   const _SpawnArgs(this.mainSendPort, this.rootToken, this.model, this.tokens,
-      this.dataDir, this.numThreads);
+      this.dataDir, this.numThreads, this.noiseScale, this.lengthScale,
+      this.noiseW);
 }
 
 /// Sent instead of the handshake `SendPort` when the isolate failed to build

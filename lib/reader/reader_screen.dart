@@ -86,6 +86,10 @@ class _ReaderScreenState extends State<ReaderScreen>
   Locator? _initialLocator;
   bool _preparingNarrator = false;
 
+  /// Narration speed (#34), mirrored from [VoiceSettings] for the UI.
+  double _speechSpeed = 1.0;
+  static const _speedOptions = [0.8, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
+
   StreamSubscription<Locator>? _locSub;
   Timer? _saveTimer;
   Locator? _pendingLocator;
@@ -160,6 +164,9 @@ class _ReaderScreenState extends State<ReaderScreen>
     }
     // Keep the timing-cache key in step with the selection mid-session.
     h.controller.voiceId = _voiceId;
+    // Apply the persisted narration speed (#34) to both engines before play.
+    _speechSpeed = vs.speechSpeed;
+    await engine.setSpeed(vs.speechSpeed);
   }
 
   Future<void> _open() async {
@@ -179,6 +186,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       // Persist reading position (debounced) as the reader location changes.
       _locSub = _readium.onTextLocatorChanged.listen(_onLocatorChanged);
       _narration!.fetchNextChapter = _nextChapterSentences;
+      _narration!.peekNextChapter = _peekNextChapterSentences;
       _narration!.onChapterTimed = _persistTimings;
 
       // Where to begin: a saved position (resume, #10), else the bundled
@@ -312,6 +320,14 @@ class _ReaderScreenState extends State<ReaderScreen>
     return next.sentences;
   }
 
+  /// Side-effect-free peek for the controller's cross-chapter look-ahead
+  /// (#35): the spine's sentences are already segmented, so this is a plain
+  /// list read — no highlight re-pointing, no state change.
+  Future<List<String>> _peekNextChapterSentences() async {
+    if (_spineIndex + 1 >= _spine.length) return const [];
+    return _spine[_spineIndex + 1].sentences;
+  }
+
   /// Persist a chapter's measured timings so re-listening doesn't re-measure.
   Future<void> _persistTimings(ChapterTimings t) async {
     await _timings?.save(bookId: widget.book.id, timings: t);
@@ -422,6 +438,21 @@ class _ReaderScreenState extends State<ReaderScreen>
     await h.play();
   }
 
+  /// Persist and apply a narration speed change (#34). The engine picks it up
+  /// from the next sentence; the highlight loop is untouched (it advances on
+  /// real audio completion regardless of pace).
+  Future<void> _setSpeed(double v) async {
+    setState(() => _speechSpeed = v);
+    final store = VoiceSettingsStore();
+    final vs = await store.load();
+    vs.speechSpeed = v;
+    await store.save(vs);
+    await _handler?.controller.engine.setSpeed(v);
+  }
+
+  String _speedLabel(double v) =>
+      v == v.roundToDouble() ? '${v.toInt()}×' : '$v×';
+
   Future<void> _playPause() async {
     final c = _narration;
     if (c == null) return;
@@ -525,6 +556,29 @@ class _ReaderScreenState extends State<ReaderScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
+          PopupMenuButton<double>(
+            tooltip: 'Narration speed',
+            initialValue: _speechSpeed,
+            onSelected: _setSpeed,
+            itemBuilder: (_) => [
+              for (final v in _speedOptions)
+                PopupMenuItem(value: v, child: Text(_speedLabel(v))),
+            ],
+            child: Semantics(
+              label: 'Narration speed, ${_speedLabel(_speechSpeed)}',
+              button: true,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  _speedLabel(_speechSpeed),
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ),
           IconButton(
             tooltip: 'Previous sentence',
             iconSize: 32,

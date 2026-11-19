@@ -67,6 +67,25 @@ class SwitchableTtsEngine implements TtsEngine {
   @override
   Future<void> setVolume(double volume) => _active.setVolume(volume);
 
+  /// Speed applies to **both** engines, not just the active one, so a
+  /// mid-book engine switch keeps the user's chosen pace (#34).
+  @override
+  Future<void> setSpeed(double speed) async {
+    await _system.setSpeed(speed);
+    await _neural.setSpeed(speed);
+  }
+
+  /// The buffering signal follows whichever engine is speaking; wiring it to
+  /// both is safe because only the active engine ever raises it (#40).
+  @override
+  void Function(bool isBuffering)? get onBuffering => _active.onBuffering;
+
+  @override
+  set onBuffering(void Function(bool isBuffering)? cb) {
+    _system.onBuffering = cb;
+    _neural.onBuffering = cb;
+  }
+
   @override
   Future<void> pause() => _active.pause();
 

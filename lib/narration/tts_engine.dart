@@ -34,6 +34,18 @@ abstract class TtsEngine {
   /// interruptions (e.g. a navigation prompt) without stopping playback.
   Future<void> setVolume(double volume);
 
+  /// Set the narration speed multiplier (1.0 = normal) (#34). Applied at the
+  /// layer that sounds best per engine: the neural engine re-times synthesis
+  /// through the VITS duration predictor; the system engine sets the platform
+  /// speech rate. Takes effect from the next utterance.
+  Future<void> setSpeed(double speed);
+
+  /// Buffering signal (#40): raised `true` while a [speak] is stalled on
+  /// synthesis (cold cache, seek to unfetched text) and `false` once audio is
+  /// flowing, so the media session can show a loading state instead of a
+  /// frozen "playing". Engines with no synth latency never raise it.
+  void Function(bool isBuffering)? onBuffering;
+
   /// Pause the currently-playing utterance in place, keeping its position so
   /// [resume] can continue it. No-op if nothing is playing.
   Future<void> pause();

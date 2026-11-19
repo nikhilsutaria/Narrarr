@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../narration/text_normalizer.dart';
 import '../narration/tts_engine.dart';
 import 'sentence_timing.dart';
 
@@ -17,9 +18,18 @@ import 'sentence_timing.dart';
 /// `sentence → (Locator, startMs, endMs)` table); this controller's completion
 /// signal becomes the source of the measured durations there.
 class NarrationController extends ChangeNotifier {
-  NarrationController({required this.engine});
+  NarrationController({required this.engine}) {
+    engine.onBuffering = _onEngineBuffering;
+  }
 
   final TtsEngine engine;
+
+  /// Written-form → spoken-form transform applied to every sentence at the
+  /// engine boundary (#36) — speak, precache and preload all see the same
+  /// text so the engine cache keys line up. Highlighting keeps using the
+  /// **original** sentence text; nothing reader-facing sees this.
+  String Function(String) normalizeForSpeech =
+      const TextNormalizer().normalize;
 
   /// Called to highlight (and page-follow to) sentence [index]. Wired by the
   /// reader screen to flutter_readium's decoration + navigation APIs.
@@ -30,6 +40,14 @@ class NarrationController extends ChangeNotifier {
   /// end. The reader sets this; it also re-points the highlight target to the
   /// new chapter before returning.
   Future<List<String>> Function()? fetchNextChapter;
+
+  /// Side-effect-free preview of the next chapter's sentences (#35): unlike
+  /// [fetchNextChapter] it must not re-point highlights or advance any state.
+  /// When set, the loop precaches the next chapter's opening sentences while
+  /// the current chapter's tail is still playing, so chapter rollover starts
+  /// without a cold-synth stall.
+  Future<List<String>> Function()? peekNextChapter;
+  bool _peekedAhead = false;
 
   /// Timing-table keys. Set by the reader before play; part of the drift cache
   /// key so timings are scoped to a book chapter and voice.
@@ -44,8 +62,19 @@ class NarrationController extends ChangeNotifier {
   int _index = 0;
   bool _playing = false;
   bool _paused = false;
+  bool _buffering = false;
   int _token = 0;
   String? _error;
+
+  /// True while the engine is stalled on synthesis (#40); the audio handler
+  /// mirrors this into the media session's processing state.
+  bool get isBuffering => _buffering;
+
+  void _onEngineBuffering(bool buffering) {
+    if (_buffering == buffering) return;
+    _buffering = buffering;
+    notifyListeners();
+  }
 
   ChapterTimingsBuilder? _timingBuilder;
   ChapterTimings? _currentTimings;
@@ -81,6 +110,7 @@ class NarrationController extends ChangeNotifier {
     _sentences = sentences;
     _index =
         sentences.isEmpty ? 0 : startIndex.clamp(0, sentences.length - 1);
+    _peekedAhead = false;
     _timingBuilder =
         ChapterTimings.builder(chapterHref: chapterHref, voiceId: voiceId);
     _currentTimings = null;
@@ -103,15 +133,23 @@ class NarrationController extends ChangeNotifier {
         notifyListeners();
         await onHighlight?.call(i);
 
-        // Look-ahead: pre-synthesize the next couple of sentences and arm the
-        // immediate next one on the spare player, so the hand-off is gapless.
+        // Look-ahead: pre-synthesize the next couple of sentences so the
+        // hand-off is gapless.
         for (var j = i + 1; j <= i + 2 && j < _sentences.length; j++) {
-          engine.precache(_sentences[j]);
+          engine.precache(normalizeForSpeech(_sentences[j]));
         }
-        if (i + 1 < _sentences.length) engine.preloadNext(_sentences[i + 1]);
+        if (i + 1 < _sentences.length) {
+          engine.preloadNext(normalizeForSpeech(_sentences[i + 1]));
+        }
+        // Nearing the chapter's tail: warm the next chapter's opening so the
+        // rollover has no cold-synth stall (#35).
+        if (i + 2 >= _sentences.length && !_peekedAhead) {
+          _peekedAhead = true;
+          unawaited(_precacheNextChapterOpening(token));
+        }
 
         try {
-          await engine.speak(_sentences[i]);
+          await engine.speak(normalizeForSpeech(_sentences[i]));
         } catch (e) {
           if (token != _token) return; // superseded while failing — stay quiet
           debugPrint('[narration] engine failed on sentence $i: $e');
@@ -135,6 +173,7 @@ class NarrationController extends ChangeNotifier {
       if (next.isEmpty) break; // end of book
       _sentences = next;
       i = 0;
+      _peekedAhead = false;
       _timingBuilder =
           ChapterTimings.builder(chapterHref: chapterHref, voiceId: voiceId);
     }
@@ -143,6 +182,21 @@ class NarrationController extends ChangeNotifier {
       _finalizeChapterTimings();
       _playing = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> _precacheNextChapterOpening(int token) async {
+    final peek = peekNextChapter;
+    if (peek == null) return;
+    try {
+      final next = await peek();
+      if (token != _token || next.isEmpty) return;
+      for (var j = 0; j < 2 && j < next.length; j++) {
+        engine.precache(normalizeForSpeech(next[j]));
+      }
+    } catch (e) {
+      // A peek is a hint; the rollover still works, just cold.
+      debugPrint('[narration] next-chapter peek failed: $e');
     }
   }
 
