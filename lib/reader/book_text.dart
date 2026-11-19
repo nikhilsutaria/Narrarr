@@ -12,8 +12,13 @@ List<String> sentencesFromHtml(String html) =>
     const Segmenter().sentencesFromHtml(html);
 
 /// A chapter resolved for reading: a content-file name fragment (to match
-/// against the reader's reading order) and its speakable sentences.
-typedef ResolvedChapter = ({String hrefHint, List<String> sentences});
+/// against the reader's reading order), its speakable sentences, and the
+/// sentence indices where paragraphs begin (#45).
+typedef ResolvedChapter = ({
+  String hrefHint,
+  List<String> sentences,
+  List<int> paragraphStarts,
+});
 
 /// Load the EPUB and resolve the chapter to read.
 ///
@@ -59,10 +64,16 @@ Future<ResolvedChapter> resolveChapter(
     html = files.values.first.Content ?? '';
   }
 
-  final all = sentencesFromHtml(html);
+  final seg = const Segmenter().segment(html);
+  final all = seg.sentences;
+  final sentences = max == null ? all : all.take(max).toList();
   return (
     hrefHint: hint ?? (contentFileHint ?? ''),
-    sentences: max == null ? all : all.take(max).toList(),
+    sentences: sentences,
+    paragraphStarts: [
+      for (final i in seg.paragraphStarts)
+        if (i < sentences.length) i
+    ],
   );
 }
 
@@ -77,17 +88,23 @@ Future<List<ResolvedChapter>> resolveSpine(Uint8List epubBytes) async {
 
   final out = <ResolvedChapter>[];
   for (final e in files.entries) {
-    final sentences = segmenter.sentencesFromHtml(e.value.Content ?? '');
-    if (sentences.join(' ').length <= 600) continue; // skip front/back matter
-    out.add((hrefHint: e.key, sentences: sentences));
+    final seg = segmenter.segment(e.value.Content ?? '');
+    if (seg.sentences.join(' ').length <= 600) continue; // skip front/back matter
+    out.add((
+      hrefHint: e.key,
+      sentences: seg.sentences,
+      paragraphStarts: seg.paragraphStarts,
+    ));
   }
 
   // Never return empty for a non-empty book: fall back to the first content doc.
   if (out.isEmpty && files.isNotEmpty) {
     final first = files.entries.first;
+    final seg = segmenter.segment(first.value.Content ?? '');
     out.add((
       hrefHint: first.key,
-      sentences: segmenter.sentencesFromHtml(first.value.Content ?? ''),
+      sentences: seg.sentences,
+      paragraphStarts: seg.paragraphStarts,
     ));
   }
   return out;

@@ -16,6 +16,9 @@ import 'package:html/parser.dart' as html_parser;
 /// never runs across a paragraph boundary. Splitting also understands
 /// ellipses, closing quotes after terminal punctuation, decimals, and caps
 /// pathological unpunctuated run-ons.
+/// A chapter's sentences plus the indices where paragraphs begin.
+typedef Segmented = ({List<String> sentences, List<int> paragraphStarts});
+
 class Segmenter {
   const Segmenter();
 
@@ -54,29 +57,44 @@ class Segmenter {
   static const int _runOnCap = 400;
   static const int _runOnTarget = 200;
 
-  List<String> sentencesFromHtml(String html) {
-    if (html.trim().isEmpty) return const [];
+  List<String> sentencesFromHtml(String html) => segment(html).sentences;
+
+  /// Block elements end a paragraph; `<br/>` only ends a line within one.
+  static const _paragraphBreak = ' ';
+
+  /// Segment [html] into sentences and report which sentence indices begin a
+  /// paragraph (block element) — used for paragraph skip and auto-rewind
+  /// (#45). Verse line breaks are not paragraph boundaries.
+  Segmented segment(String html) {
+    const empty = (sentences: <String>[], paragraphStarts: <int>[]);
+    if (html.trim().isEmpty) return empty;
     final doc = html_parser.parse(html);
     final root = doc.body ?? doc.documentElement;
-    if (root == null) return const [];
+    if (root == null) return empty;
 
     final buf = StringBuffer();
     _collect(root, buf);
 
-    final text = buf
-        .toString()
-        // Spaced ellipses (`. . .`) read as three sentence ends; canonicalize
-        // before splitting (#37).
-        .replaceAll(RegExp(r'\s*\.\s+\.\s+\.'), '...')
-        .replaceAll(RegExp(r'[ \t]+'), ' ')
-        .replaceAll(RegExp(r'\s*\n\s*'), '\n')
-        .trim();
-
-    final out = <String>[];
-    for (final para in text.split('\n')) {
-      if (para.trim().isNotEmpty) out.addAll(_splitParagraph(para.trim()));
+    final sentences = <String>[];
+    final starts = <int>[];
+    for (final block in buf.toString().split(_paragraphBreak)) {
+      final text = block
+          // Spaced ellipses (`. . .`) read as three sentence ends;
+          // canonicalize before splitting (#37).
+          .replaceAll(RegExp(r'\s*\.\s+\.\s+\.'), '...')
+          .replaceAll(RegExp(r'[ \t]+'), ' ')
+          .replaceAll(RegExp(r'\s*\n\s*'), '\n')
+          .trim();
+      if (text.isEmpty) continue;
+      final first = sentences.length;
+      for (final line in text.split('\n')) {
+        if (line.trim().isNotEmpty) {
+          sentences.addAll(_splitParagraph(line.trim()));
+        }
+      }
+      if (sentences.length > first) starts.add(first);
     }
-    return out;
+    return (sentences: sentences, paragraphStarts: starts);
   }
 
   /// Depth-first text collection that skips non-narratable subtrees.
@@ -90,7 +108,7 @@ class Segmenter {
           continue;
         }
         _collect(child, buf);
-        if (_blockTags.contains(tag)) buf.write('\n');
+        if (_blockTags.contains(tag)) buf.write(_paragraphBreak);
       } else if (child is dom.Text) {
         buf.write(child.text);
       }

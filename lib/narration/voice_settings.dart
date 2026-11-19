@@ -10,14 +10,27 @@ import 'voice_catalog.dart';
 /// Which voice the user has selected as active. [kSystemVoiceId] selects the
 /// device's built-in TTS; any other id selects that neural voice.
 class VoiceSettings {
-  VoiceSettings({String? activeVoiceId, double? speechSpeed})
-      : activeVoiceId = activeVoiceId ?? defaultVoiceId,
-        speechSpeed = speechSpeed ?? 1.0;
+  VoiceSettings({
+    String? activeVoiceId,
+    double? speechSpeed,
+    int? skipSeconds,
+    bool? autoRewind,
+  })  : activeVoiceId = activeVoiceId ?? defaultVoiceId,
+        speechSpeed = speechSpeed ?? 1.0,
+        skipSeconds = skipOptions.contains(skipSeconds) ? skipSeconds! : 30,
+        autoRewind = autoRewind ?? true;
   String activeVoiceId;
 
   /// Narration speed multiplier (#34), 1.0 = normal. Applied to the engine
   /// before every play so it survives restarts and engine switches.
   double speechSpeed;
+
+  /// Skip back / forward interval in seconds (#45).
+  int skipSeconds;
+  static const skipOptions = [10, 15, 30, 60];
+
+  /// Resume a little earlier after a long pause (#45).
+  bool autoRewind;
 
   /// Out-of-the-box selection (#15): prod (and unflavored tests) default to the
   /// system voice so a fresh install narrates with no download; the QA flavor
@@ -25,11 +38,17 @@ class VoiceSettings {
   static String get defaultVoiceId =>
       BuildFlavor.isQa ? VoiceCatalog.amyLow.id : kSystemVoiceId;
 
-  Map<String, dynamic> toJson() =>
-      {'activeVoiceId': activeVoiceId, 'speechSpeed': speechSpeed};
+  Map<String, dynamic> toJson() => {
+        'activeVoiceId': activeVoiceId,
+        'speechSpeed': speechSpeed,
+        'skipSeconds': skipSeconds,
+        'autoRewind': autoRewind,
+      };
   factory VoiceSettings.fromJson(Map<String, dynamic> j) => VoiceSettings(
         activeVoiceId: j['activeVoiceId'] as String?,
         speechSpeed: (j['speechSpeed'] as num?)?.toDouble(),
+        skipSeconds: (j['skipSeconds'] as num?)?.toInt(),
+        autoRewind: j['autoRewind'] as bool?,
       );
 }
 

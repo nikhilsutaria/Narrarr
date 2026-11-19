@@ -93,6 +93,9 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   /// Narration speed (#34), mirrored from [VoiceSettings] for the UI.
   double _speechSpeed = 1.0;
+
+  /// Skip interval in seconds (#45), mirrored from [VoiceSettings].
+  int _skipSeconds = 30;
   static const _speedOptions = [0.8, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
 
   StreamSubscription<Locator>? _locSub;
@@ -173,6 +176,10 @@ class _ReaderScreenState extends State<ReaderScreen>
     _speechSpeed = vs.speechSpeed;
     h.controller.speechSpeed = vs.speechSpeed;
     await engine.setSpeed(vs.speechSpeed);
+    // Listening preferences (#45).
+    _skipSeconds = vs.skipSeconds;
+    h.skipInterval = Duration(seconds: vs.skipSeconds);
+    h.controller.autoRewind = vs.autoRewind;
   }
 
   Future<void> _open() async {
@@ -198,6 +205,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       _locSub = _readium.onTextLocatorChanged.listen(_onLocatorChanged);
       _narration!.fetchNextChapter = _nextChapterSentences;
       _narration!.peekNextChapter = _peekNextChapterSentences;
+      _narration!.fetchPreviousChapter = _previousChapterSentences;
       _narration!.onChapterTimed = _persistTimings;
 
       // Where to begin: a saved position (resume, #10), else the bundled
@@ -250,7 +258,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     final pub = _pub;
     if (pub == null) return;
     final chapter = _spine.isEmpty
-        ? (hrefHint: '', sentences: <String>[])
+        ? (hrefHint: '', sentences: <String>[], paragraphStarts: <int>[])
         : _spine[spineIndex.clamp(0, _spine.length - 1)];
     _spineIndex = _spine.isEmpty ? 0 : spineIndex.clamp(0, _spine.length - 1);
     _chapterHref = _hrefFor(pub, chapter.hrefHint);
@@ -263,6 +271,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       voiceId: _voiceId,
       chapterHref: chapter.hrefHint,
       startSentence: startSentence,
+      paragraphStarts: chapter.paragraphStarts,
       onHighlight: _highlightSentence,
     );
 
@@ -328,7 +337,21 @@ class _ReaderScreenState extends State<ReaderScreen>
     if (pub != null) _chapterHref = _hrefFor(pub, next.hrefHint);
     // Key the next chapter's timing builder before the controller swaps to it.
     _narration?.chapterHref = next.hrefHint;
+    _narration?.paragraphStarts = next.paragraphStarts;
     return next.sentences;
+  }
+
+  /// Controller callback for backward skips across a chapter start (#45):
+  /// step back one spine chapter, re-pointing the highlight target.
+  Future<List<String>> _previousChapterSentences() async {
+    if (_spineIndex <= 0) return const [];
+    _spineIndex--;
+    final prev = _spine[_spineIndex];
+    final pub = _pub;
+    if (pub != null) _chapterHref = _hrefFor(pub, prev.hrefHint);
+    _narration?.chapterHref = prev.hrefHint;
+    _narration?.paragraphStarts = prev.paragraphStarts;
+    return prev.sentences;
   }
 
   /// Side-effect-free peek for the controller's cross-chapter look-ahead
@@ -709,6 +732,11 @@ class _ReaderScreenState extends State<ReaderScreen>
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         IconButton(
+          tooltip: 'Back $_skipSeconds seconds',
+          onPressed: () => _handler!.rewind(),
+          icon: _SkipIcon(seconds: _skipSeconds, forward: false),
+        ),
+        IconButton(
           tooltip: 'Previous sentence',
           iconSize: 32,
           onPressed: () => _handler!.skipToPrevious(),
@@ -727,13 +755,39 @@ class _ReaderScreenState extends State<ReaderScreen>
           onPressed: () => _handler!.skipToNext(),
           icon: const Icon(Icons.skip_next),
         ),
+        IconButton(
+          tooltip: 'Forward $_skipSeconds seconds',
+          onPressed: () => _handler!.fastForward(),
+          icon: _SkipIcon(seconds: _skipSeconds, forward: true),
+        ),
         PopupMenuButton<String>(
           tooltip: 'More narration options',
           icon: const Icon(Icons.more_vert, size: 28),
           onSelected: (v) {
-            if (v == 'stop') _handler!.stop();
+            switch (v) {
+              case 'prevPara':
+                _narration?.skipParagraph(-1);
+              case 'nextPara':
+                _narration?.skipParagraph(1);
+              case 'stop':
+                _handler!.stop();
+            }
           },
           itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'prevPara',
+              child: ListTile(
+                leading: Icon(Icons.vertical_align_top),
+                title: Text('Previous paragraph'),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'nextPara',
+              child: ListTile(
+                leading: Icon(Icons.vertical_align_bottom),
+                title: Text('Next paragraph'),
+              ),
+            ),
             PopupMenuItem(
               value: 'stop',
               child: ListTile(
@@ -747,4 +801,38 @@ class _ReaderScreenState extends State<ReaderScreen>
     );
   }
 
+}
+
+/// Circular-arrow skip icon with the interval drawn inside (any of 10/15/30/60,
+/// which Material's fixed replay_N / forward_N icons don't all cover).
+class _SkipIcon extends StatelessWidget {
+  const _SkipIcon({required this.seconds, required this.forward});
+  final int seconds;
+  final bool forward;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = IconTheme.of(context).color;
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Transform.flip(
+            flipX: forward,
+            child: Icon(Icons.replay, size: 32, color: color),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '$seconds',
+              style: TextStyle(
+                  fontSize: 9, fontWeight: FontWeight.w700, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

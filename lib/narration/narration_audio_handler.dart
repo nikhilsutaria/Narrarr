@@ -38,12 +38,14 @@ class NarrationAudioHandler extends BaseAudioHandler {
     String voiceId = 'unknown',
     String chapterHref = '',
     int startSentence = 0,
+    List<int> paragraphStarts = const [],
     Future<void> Function(int index)? onHighlight,
   }) {
     controller.onHighlight = onHighlight;
     controller.voiceId = voiceId;
     controller.chapterHref = chapterHref;
-    controller.setSentences(sentences, startIndex: startSentence);
+    controller.setSentences(sentences,
+        startIndex: startSentence, paragraphStarts: paragraphStarts);
     mediaItem.add(MediaItem(id: bookId, title: title, artist: author));
   }
 
@@ -74,6 +76,18 @@ class NarrationAudioHandler extends BaseAudioHandler {
 
   /// Seek narration to a specific sentence (tap-to-seek from the reader).
   Future<void> seekToSentence(int index) => controller.seekToSentence(index);
+
+  /// Time-skip interval for rewind / fast-forward (#45); the reader applies
+  /// the user's setting.
+  Duration skipInterval = const Duration(seconds: 30);
+
+  /// Lock-screen / headset rewind: skip back by [skipInterval] (#45).
+  @override
+  Future<void> rewind() => controller.skipTime(-skipInterval);
+
+  /// Lock-screen / headset fast-forward: skip ahead by [skipInterval] (#45).
+  @override
+  Future<void> fastForward() => controller.skipTime(skipInterval);
 
   // ---- audio focus / interruptions (#9) ----
 
@@ -116,17 +130,24 @@ class NarrationAudioHandler extends BaseAudioHandler {
   void _broadcast() {
     final playing = controller.isPlaying && !controller.isPaused;
     playbackState.add(playbackState.value.copyWith(
+      // Time skip (#45) is the most useful lock-screen control, so the compact
+      // view shows rewind / play-pause / fast-forward; sentence skip stays in
+      // the expanded view and on headset next/previous.
       controls: [
+        MediaControl.rewind,
         MediaControl.skipToPrevious,
         if (playing) MediaControl.pause else MediaControl.play,
         MediaControl.skipToNext,
-        MediaControl.stop,
+        MediaControl.fastForward,
       ],
       systemActions: const {
         MediaAction.skipToNext,
         MediaAction.skipToPrevious,
+        MediaAction.rewind,
+        MediaAction.fastForward,
+        MediaAction.stop,
       },
-      androidCompactActionIndices: const [0, 1, 2],
+      androidCompactActionIndices: const [0, 2, 4],
       // Surface synth stalls as buffering (#40) so the lock screen shows a
       // loading state instead of a frozen "playing".
       processingState: controller.isBuffering

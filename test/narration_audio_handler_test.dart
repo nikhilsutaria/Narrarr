@@ -27,6 +27,40 @@ void main() {
     expect(handler.playbackState.value.playing, false);
   });
 
+  test('rewind / fast-forward skip by the configured interval (#45)', () async {
+    final controller = NarrationController(engine: FakeTtsEngine());
+    final handler = NarrationAudioHandler(controller)
+      ..skipInterval = const Duration(seconds: 12);
+    // 100-char sentences last ~6 s each at the default rate.
+    handler.loadChapter(
+        bookId: 'b1',
+        title: 'Book',
+        sentences: [for (var i = 0; i < 10; i++) '$i'.padRight(100, '.')],
+        startSentence: 5);
+
+    await handler.fastForward();
+    expect(controller.index, 7);
+    await handler.rewind();
+    expect(controller.index, 5);
+
+    final state = handler.playbackState.value;
+    expect(state.controls.first, MediaControl.rewind);
+    expect(state.controls.last, MediaControl.fastForward);
+    expect(state.androidCompactActionIndices, [0, 2, 4]);
+    expect(state.systemActions,
+        containsAll([MediaAction.rewind, MediaAction.fastForward]));
+  });
+
+  test('loadChapter passes paragraph starts to the controller (#45)', () {
+    final controller = NarrationController(engine: FakeTtsEngine());
+    NarrationAudioHandler(controller).loadChapter(
+        bookId: 'b1',
+        title: 'Book',
+        sentences: ['a', 'b', 'c'],
+        paragraphStarts: const [0, 2]);
+    expect(controller.paragraphStarts, [0, 2]);
+  });
+
   test('controls swap play<->pause with playing state', () async {
     final controller = NarrationController(engine: FakeTtsEngine());
     final handler = NarrationAudioHandler(controller);

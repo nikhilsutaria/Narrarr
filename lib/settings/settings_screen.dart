@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../narration/voice_manager.dart';
 import '../narration/voice_screen.dart';
 import '../narration/voice_settings.dart';
+import 'listening_settings_screen.dart';
 
 /// App settings / about. Entry point to voice management and the privacy note.
 class SettingsScreen extends StatelessWidget {
@@ -24,6 +25,14 @@ class SettingsScreen extends StatelessWidget {
                 manager: DownloadingVoiceManager(),
                 settingsStore: VoiceSettingsStore(),
               ),
+            )),
+          ),
+          ListTile(
+            leading: const Icon(Icons.headphones),
+            title: const Text('Listening'),
+            subtitle: const Text('Skip interval and rewinding after a pause'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ListeningSettingsScreen(store: VoiceSettingsStore()),
             )),
           ),
           const ListTile(

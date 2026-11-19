@@ -31,4 +31,26 @@ void main() {
     expect(s.activeVoiceId, 'system');
     expect(s.speechSpeed, 1.0);
   });
+
+  test('listening settings default, round-trip, and sanitise (#45)', () async {
+    final dir = Directory.systemTemp.createTempSync('vs');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = File('${dir.path}/voice_settings.json');
+    final store = VoiceSettingsStore(file: file);
+
+    final fresh = await store.load();
+    expect(fresh.skipSeconds, 30);
+    expect(fresh.autoRewind, isTrue);
+
+    fresh
+      ..skipSeconds = 15
+      ..autoRewind = false;
+    await store.save(fresh);
+    final back = await VoiceSettingsStore(file: file).load();
+    expect(back.skipSeconds, 15);
+    expect(back.autoRewind, isFalse);
+
+    file.writeAsStringSync('{"skipSeconds": 7}'); // not an offered option
+    expect((await VoiceSettingsStore(file: file).load()).skipSeconds, 30);
+  });
 }
