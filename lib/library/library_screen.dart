@@ -59,6 +59,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     // Narrarr's own EPUB copies of books no longer in the library (#69).
     await deleteOrphanBookCopies(
         await appBooksDir(), {for (final b in _books) b.filePath});
+    // And the picker's temporary copies left by earlier imports.
+    await clearPickerTempFiles();
     try {
       final db = appDatabase();
       await BookmarkRepository(db).deleteOrphans(keep);

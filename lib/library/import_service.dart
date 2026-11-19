@@ -40,14 +40,19 @@ Future<ImportResult> pickAndImportEpub({
 
   final result =
       await importEpubFromFile(src: File(path), booksDir: booksDir, nowMs: nowMs);
-  // The picker hands over a temporary copy in the app cache; Narrarr has its
-  // own copy now (or rejected the file), so drop it (#69).
+  // Narrarr has its own copy now (or rejected the file).
+  await clearPickerTempFiles();
+  return result;
+}
+
+/// The picker hands over a temporary copy of the picked file in the app
+/// cache; drop those (#69). Safe whenever no pick is in progress.
+Future<void> clearPickerTempFiles() async {
   try {
     await FilePicker.clearTemporaryFiles();
   } catch (e) {
     debugPrint('[import] clearing picker temp files failed: $e');
   }
-  return result;
 }
 
 /// Validate, DRM-check, and copy [src] into [booksDir], returning a [Book].
