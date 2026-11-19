@@ -35,6 +35,11 @@ class DriftLibraryRepository implements LibraryRepository {
       (db.update(db.books)..where((t) => t.id.equals(id)))
           .write(BooksCompanion(lastLocatorJson: Value(locatorJson)));
 
+  @override
+  Future<void> updateProgress(String id, double progress) =>
+      (db.update(db.books)..where((t) => t.id.equals(id)))
+          .write(BooksCompanion(progress: Value(progress)));
+
   Book _toBook(BookRow r) => Book(
         id: r.id,
         title: r.title,
@@ -44,6 +49,7 @@ class DriftLibraryRepository implements LibraryRepository {
         addedAtMs: r.addedAtMs,
         lastLocatorJson: r.lastLocatorJson,
         isBundledSample: r.isBundledSample,
+        progress: r.progress,
       );
 
   BooksCompanion _toRow(Book b) => BooksCompanion(
@@ -55,13 +61,14 @@ class DriftLibraryRepository implements LibraryRepository {
         addedAtMs: Value(b.addedAtMs),
         lastLocatorJson: Value(b.lastLocatorJson),
         isBundledSample: Value(b.isBundledSample),
+        progress: Value(b.progress),
       );
 }
 
 /// Opens the app's library (drift), one-time migrating any legacy JSON manifest
 /// from the previous store.
 Future<LibraryRepository> openAppLibrary() async {
-  final repo = DriftLibraryRepository(LibraryDatabase());
+  final repo = DriftLibraryRepository(appDatabase());
   await _migrateJsonIfPresent(repo);
   return repo;
 }

@@ -18,11 +18,15 @@ extension ReaderFontX on ReaderFont {
       };
 
   /// CSS font-family for the Readium webview (null = keep publisher font).
+  /// Must be a **single family name**: Readium quotes the whole value, so a
+  /// stack like `Georgia, serif` turned into one unknown family (#18). The
+  /// serif/sans names are aliases declared in the reader's injected stylesheet
+  /// (`display_epub.dart`), resolving to the device's own system fonts.
   String? get cssFamily => switch (this) {
         ReaderFont.publisher => null,
         ReaderFont.atkinson => 'Atkinson Hyperlegible',
-        ReaderFont.serif => 'Georgia, serif',
-        ReaderFont.sans => 'system-ui, sans-serif',
+        ReaderFont.serif => 'Narrarr Serif',
+        ReaderFont.sans => 'Narrarr Sans',
       };
 }
 
@@ -80,10 +84,10 @@ class ReaderSettings {
         letterSpacing != 0 ||
         wordSpacing != 0 ||
         paragraphSpacing != 0;
-    return EPUBPreferences(
+    return _RatioFontSizePreferences(
+      fontScale: fontSizePercent / 100,
       publisherStyles: overriding ? false : null,
       fontFamily: font.cssFamily,
-      fontSize: fontSizePercent,
       lineHeight: lineHeight,
       backgroundColor: theme.background,
       textColor: theme.text,
@@ -162,4 +166,30 @@ class ReaderSettingsStore {
     final f = await _file();
     await f.writeAsString(jsonEncode(s.toJson()));
   }
+}
+
+/// flutter_readium 0.1.0 types `EPUBPreferences.fontSize` as an `int`, but its
+/// Android side reads it as Readium's ratio (1.0 = 100%) — so a percent like
+/// 110 rendered at 11000% and every page looked blank. Send the ratio instead.
+class _RatioFontSizePreferences extends EPUBPreferences {
+  const _RatioFontSizePreferences({
+    required this.fontScale,
+    super.publisherStyles,
+    super.fontFamily,
+    super.lineHeight,
+    super.backgroundColor,
+    super.textColor,
+    super.letterSpacing,
+    super.wordSpacing,
+    super.paragraphSpacing,
+    super.scroll,
+  });
+
+  final double fontScale;
+
+  @override
+  Map<String, dynamic> toJson() => super.toJson()..['fontSize'] = fontScale;
+
+  @override
+  List<Object?> get props => [...super.props, fontScale];
 }

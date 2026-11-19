@@ -13,6 +13,9 @@ abstract class LibraryRepository {
   Future<void> add(Book book);
   Future<void> remove(String id);
   Future<void> updateLocator(String id, String locatorJson);
+
+  /// Record how far through the book the reader is (0..1) (#46).
+  Future<void> updateProgress(String id, double progress);
 }
 
 /// JSON-manifest implementation rooted at [dir] (app-support storage in the app;
@@ -70,6 +73,15 @@ class JsonLibraryRepository implements LibraryRepository {
     final i = books.indexWhere((b) => b.id == id);
     if (i == -1) return;
     books[i] = books[i].copyWith(lastLocatorJson: locatorJson);
+    await _save(books);
+  }
+
+  @override
+  Future<void> updateProgress(String id, double progress) async {
+    final books = await _load();
+    final i = books.indexWhere((b) => b.id == id);
+    if (i == -1) return;
+    books[i] = books[i].copyWith(progress: progress);
     await _save(books);
   }
 }

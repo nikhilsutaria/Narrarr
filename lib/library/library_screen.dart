@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,10 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../build_flavor.dart';
+import '../reader/display_epub.dart';
+import '../narration/pronunciation_repository.dart';
+import 'bookmark_repository.dart';
+import 'drift/library_database.dart';
 import '../reader/reader_screen.dart';
 import '../settings/settings_screen.dart';
 import 'book.dart';
@@ -41,6 +46,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (BuildFlavor.isQa) await _seedSampleIfEmpty(repo);
     _repo = repo;
     await _refresh();
+    unawaited(_sweepOrphans());
+  }
+
+  /// A book removed just before the app died never got its derived data
+  /// cleaned up (that runs when the Undo snackbar closes) — sweep once at
+  /// start, when no Undo can be pending.
+  Future<void> _sweepOrphans() async {
+    final keep = {for (final b in _books) b.id};
+    await deleteOrphanDisplayCopies(keep);
+    try {
+      final db = appDatabase();
+      await BookmarkRepository(db).deleteOrphans(keep);
+      await PronunciationRepository(db).deleteOrphans(keep);
+    } catch (e) {
+      debugPrint('[library] orphan sweep failed: $e');
+    }
   }
 
   Future<void> _refresh() async {
@@ -101,7 +122,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     await _repo!.remove(book.id);
     await _refresh();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    final snack = ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('Removed "${book.title}"'),
       action: SnackBarAction(
         label: 'Undo',
@@ -111,6 +132,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
         },
       ),
     ));
+    // Once the Undo window has passed, drop the book's derived data: its
+    // reader display copy (#18), bookmarks (#48) and book-only
+    // pronunciations (#47).
+    final reason = await snack.closed;
+    if (reason == SnackBarClosedReason.action) return;
+    await deleteDisplayCopies(book.id);
+    try {
+      await BookmarkRepository(appDatabase()).deleteForBook(book.id);
+      await PronunciationRepository(appDatabase()).deleteForBook(book.id);
+    } catch (e) {
+      debugPrint('[library] bookmark cleanup failed: $e');
+    }
   }
 
   void _showSnack(String msg) =>
@@ -185,7 +218,7 @@ class _BookTile extends StatelessWidget {
       // screen readers.
       leading: ExcludeSemantics(child: _Cover(book: book, scheme: scheme)),
       title: Text(book.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: book.author != null ? Text(book.author!) : null,
+      subtitle: _subtitle(context),
       onTap: onTap,
       trailing: PopupMenuButton<String>(
         tooltip: 'Book options',
@@ -200,6 +233,40 @@ class _BookTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+extension on _BookTile {
+  /// Author plus a reading-progress bar once the book has been opened (#46).
+  Widget? _subtitle(BuildContext context) {
+    final progress = book.progress;
+    if (progress == null) {
+      return book.author != null ? Text(book.author!) : null;
+    }
+    final pct = (progress * 100).floor();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (book.author != null) Text(book.author!),
+        const SizedBox(height: 6),
+        Semantics(
+          label: '$pct percent read',
+          excludeSemantics: true,
+          child: Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(value: progress, minHeight: 4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('$pct%', style: Theme.of(context).textTheme.labelSmall),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

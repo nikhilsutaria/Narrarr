@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../narration/voice_manager.dart';
 import '../narration/voice_screen.dart';
 import '../narration/voice_settings.dart';
+import 'listening_settings_screen.dart';
+import 'pronunciations_screen.dart';
 
 /// App settings / about. Entry point to voice management and the privacy note.
 class SettingsScreen extends StatelessWidget {
@@ -26,6 +28,22 @@ class SettingsScreen extends StatelessWidget {
               ),
             )),
           ),
+          ListTile(
+            leading: const Icon(Icons.headphones),
+            title: const Text('Listening'),
+            subtitle: const Text('Skip interval and rewinding after a pause'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ListeningSettingsScreen(store: VoiceSettingsStore()),
+            )),
+          ),
+          ListTile(
+            leading: const Icon(Icons.spellcheck),
+            title: const Text('Pronunciations'),
+            subtitle: const Text('Words you’ve taught the voice to say'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const PronunciationsScreen(),
+            )),
+          ),
           const ListTile(
             leading: Icon(Icons.accessibility_new),
             title: Text('Accessibility'),
@@ -37,7 +55,7 @@ class SettingsScreen extends StatelessWidget {
           const AboutListTile(
             icon: Icon(Icons.info_outline),
             applicationName: 'Narrarr',
-            applicationVersion: '1.1.0',
+            applicationVersion: '1.3.0',
             aboutBoxChildren: [
               Text(
                   'Immersion reading for your own EPUBs. Fully offline, no '

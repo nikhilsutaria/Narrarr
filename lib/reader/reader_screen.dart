@@ -6,22 +6,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter_readium/flutter_readium.dart';
 
 import '../library/book.dart';
+import '../library/bookmark_repository.dart';
 import '../library/drift/library_database.dart';
 import '../a11y/a11y_policy.dart';
 import '../library/library_repository.dart';
 import '../narration/narration_audio_handler.dart';
-import '../narration/switchable_tts_engine.dart';
-import '../narration/voice_catalog.dart';
+import '../narration/pronunciation.dart';
+import '../narration/pronunciation_dialog.dart';
+import '../narration/pronunciation_repository.dart';
+import '../narration/text_normalizer.dart';
 import '../narration/voice_settings.dart';
 import '../sync/book_position.dart';
 import '../sync/narration_controller.dart';
+import '../sync/progress_estimate.dart';
 import '../sync/sentence_match.dart';
 import '../sync/sentence_timing.dart';
+import '../sync/sleep_timer.dart';
 import '../sync/timing_repository.dart';
 import '../ui/theme.dart';
 import 'book_text.dart';
+import 'bookmarks_sheet.dart';
 import 'chapter_picker.dart';
 import 'chapter_titles.dart';
+import 'display_epub.dart';
 import 'reader_settings.dart';
 import 'reader_settings_sheet.dart';
 
@@ -40,6 +47,8 @@ class ReaderScreen extends StatefulWidget {
     required this.book,
     this.repository,
     this.timingRepository,
+    this.bookmarkRepository,
+    this.pronunciationRepository,
   });
 
   final Book book;
@@ -50,6 +59,12 @@ class ReaderScreen extends StatefulWidget {
   /// Caches measured sentence timings (Phase 3). Defaults to one backed by the
   /// app's drift database when not injected.
   final TimingRepository? timingRepository;
+
+  /// Bookmarks store (#48); defaults to the shared app database.
+  final BookmarkRepository? bookmarkRepository;
+
+  /// Pronunciation fixes (#47); defaults to the shared app database.
+  final PronunciationRepository? pronunciationRepository;
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -73,6 +88,9 @@ class _ReaderScreenState extends State<ReaderScreen>
   String _chapterHref = '';
 
   TimingRepository? _timings;
+  BookmarkRepository? _bookmarks;
+  PronunciationRepository? _pronunciations;
+  List<PronunciationEntry> _pronunciationEntries = const [];
   // The active voice, loaded from VoiceSettings in [_applyVoiceSelection]
   // (flavor default: system TTS in prod, bundled Amy in QA). Keys the timing
   // cache and drives engine/voice selection.
@@ -83,11 +101,17 @@ class _ReaderScreenState extends State<ReaderScreen>
   List<ResolvedChapter> _spine = const [];
   int _spineIndex = 0;
 
+  /// Character lengths of the whole spine — drives time left and % (#46).
+  BookLength? _bookLength;
+
   Locator? _initialLocator;
   bool _preparingNarrator = false;
 
   /// Narration speed (#34), mirrored from [VoiceSettings] for the UI.
   double _speechSpeed = 1.0;
+
+  /// Skip interval in seconds (#45), mirrored from [VoiceSettings].
+  int _skipSeconds = 30;
   static const _speedOptions = [0.8, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
 
   StreamSubscription<Locator>? _locSub;
@@ -134,7 +158,11 @@ class _ReaderScreenState extends State<ReaderScreen>
     _readium.setDefaultPreferences(_settings.toEpubPreferences());
     _handler = await narrationHandler();
     _handler!.controller.addListener(_onNarrationChanged);
-    _timings = widget.timingRepository ?? TimingRepository(LibraryDatabase());
+    _handler!.sleepTimer.addListener(_onNarrationChanged);
+    _timings = widget.timingRepository ?? TimingRepository(appDatabase());
+    _bookmarks = widget.bookmarkRepository ?? BookmarkRepository(appDatabase());
+    _pronunciations = widget.pronunciationRepository ??
+        PronunciationRepository(appDatabase());
     // Point the engine at the user's persisted selection before opening.
     await _applyVoiceSelection();
     await _open();
@@ -147,26 +175,11 @@ class _ReaderScreenState extends State<ReaderScreen>
   Future<void> _applyVoiceSelection() async {
     final h = _handler;
     if (h == null) return;
-    final vs = await VoiceSettingsStore().load();
+    final vs = await h.applyVoiceSettings();
+    // Mirror for the UI and the timing-cache key.
     _voiceId = vs.activeVoiceId;
-    final engine = h.controller.engine;
-    if (engine is SwitchableTtsEngine) {
-      if (_voiceId == kSystemVoiceId) {
-        await engine.useSystem();
-      } else {
-        await engine
-            .useNeural(VoiceCatalog.byId(_voiceId) ?? VoiceCatalog.amyLow);
-      }
-    } else {
-      // Injected test engines aren't switchable; still forward the voice.
-      await engine
-          .setVoiceIfNeeded(VoiceCatalog.byId(_voiceId) ?? VoiceCatalog.amyLow);
-    }
-    // Keep the timing-cache key in step with the selection mid-session.
-    h.controller.voiceId = _voiceId;
-    // Apply the persisted narration speed (#34) to both engines before play.
     _speechSpeed = vs.speechSpeed;
-    await engine.setSpeed(vs.speechSpeed);
+    _skipSeconds = vs.skipSeconds;
   }
 
   Future<void> _open() async {
@@ -177,16 +190,23 @@ class _ReaderScreenState extends State<ReaderScreen>
       final saved = widget.book.lastLocatorJson;
       if (saved != null) _initialLocator = Locator.fromJsonString(saved);
 
-      final pub = await _readium.openPublication('file://$path');
+      // Open a display copy that carries the Atkinson web font (#18); the
+      // narration text below still comes from the user's original file.
+      final displayPath =
+          await ensureDisplayCopy(bookId: widget.book.id, sourcePath: path);
+      final pub = await _readium.openPublication('file://$displayPath');
       _pub = pub;
 
       final bytes = await File(path).readAsBytes();
       _spine = await resolveSpine(bytes);
+      _bookLength = BookLength([for (final c in _spine) c.sentences]);
+      await _reloadPronunciations();
 
       // Persist reading position (debounced) as the reader location changes.
       _locSub = _readium.onTextLocatorChanged.listen(_onLocatorChanged);
       _narration!.fetchNextChapter = _nextChapterSentences;
       _narration!.peekNextChapter = _peekNextChapterSentences;
+      _narration!.fetchPreviousChapter = _previousChapterSentences;
       _narration!.onChapterTimed = _persistTimings;
 
       // Where to begin: a saved position (resume, #10), else the bundled
@@ -239,7 +259,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     final pub = _pub;
     if (pub == null) return;
     final chapter = _spine.isEmpty
-        ? (hrefHint: '', sentences: <String>[])
+        ? (hrefHint: '', sentences: <String>[], paragraphStarts: <int>[])
         : _spine[spineIndex.clamp(0, _spine.length - 1)];
     _spineIndex = _spine.isEmpty ? 0 : spineIndex.clamp(0, _spine.length - 1);
     _chapterHref = _hrefFor(pub, chapter.hrefHint);
@@ -252,6 +272,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       voiceId: _voiceId,
       chapterHref: chapter.hrefHint,
       startSentence: startSentence,
+      paragraphStarts: chapter.paragraphStarts,
       onHighlight: _highlightSentence,
     );
 
@@ -269,22 +290,192 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// playing from its first sentence (#12). Stops any running session first so
   /// the play loop doesn't read the swapped-in sentences with a stale index.
   Future<void> _jumpToChapter(int spineIndex) async {
-    await _handler!.stop();
+    // controller.stop, not handler.stop: a restart keeps the sleep timer.
+    await _narration!.stop();
     await _loadChapterAt(spineIndex);
     await _startNarration();
+  }
+
+  /// Display titles for every spine chapter, from the book's table of contents.
+  List<String> _chapterTitleList() {
+    final toc = <TocEntry>[
+      for (final l in (_pub?.tocFlattened ?? const <Link>[]))
+        if (l.title != null) (href: l.href, title: l.title!),
+    ];
+    return chapterTitles(
+      hrefHints: [for (final c in _spine) c.hrefHint],
+      toc: toc,
+    );
+  }
+
+  // ---- pronunciation (#47) ----
+
+  /// Load this book's (and global) fixes into the speech pipeline: the
+  /// dictionary runs first, then the normaliser; highlighting is unaffected.
+  Future<void> _reloadPronunciations() async {
+    final repo = _pronunciations;
+    final c = _narration;
+    if (repo == null || c == null) return;
+    try {
+      _pronunciationEntries = await repo.forBook(widget.book.id);
+    } catch (e) {
+      debugPrint('[reader] pronunciation load failed: $e');
+      _pronunciationEntries = const [];
+    }
+    final dict = PronunciationDictionary(_pronunciationEntries);
+    const normalizer = TextNormalizer();
+    c.normalizeForSpeech = dict.isEmpty
+        ? normalizer.normalize
+        : (s) => normalizer.normalize(dict.apply(s));
+  }
+
+  Future<void> _previewSpeech(String text) async {
+    try {
+      await _handler?.previewSpeech(text);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Couldn’t play the preview with the current voice.')));
+    }
+  }
+
+  /// Teach the voice how to say [word] (#47).
+  Future<void> _fixPronunciation(String word) async {
+    final repo = _pronunciations;
+    if (repo == null) return;
+    final w = word.trim();
+    final existing = _pronunciationEntries
+        .where((e) => e.word.toLowerCase() == w.toLowerCase())
+        .fold<PronunciationEntry?>(
+            null, (best, e) => best == null || e.bookId != null ? e : best);
+    final edit = await showPronunciationDialog(
+      context,
+      word: w,
+      replacement: existing?.replacement ?? '',
+      caseSensitive: existing?.caseSensitive ?? false,
+      thisBookOnly: existing == null || existing.bookId != null,
+      bookTitle: widget.book.title,
+      onPreview: _previewSpeech,
+    );
+    if (edit == null) return;
+    await repo.save(
+      word: edit.word,
+      replacement: edit.replacement,
+      caseSensitive: edit.caseSensitive,
+      bookId: edit.thisBookOnly ? widget.book.id : null,
+      nowMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    await _reloadPronunciations();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('“${edit.word}” will be read as “${edit.replacement}”.')));
+  }
+
+  /// ⋯ › Fix pronunciation: pick the word from the sentence being read.
+  Future<void> _fixPronunciationFromSentence() async {
+    final c = _narration;
+    if (c == null || c.sentenceCount == 0) return;
+    // Hold narration so the offered words match the highlighted sentence.
+    if (c.isPlaying && !c.isPaused) await _handler!.pause();
+    if (!mounted) return;
+    final word = await showWordPicker(context, c.sentenceTextAt(c.index));
+    if (word != null && mounted) await _fixPronunciation(word);
+  }
+
+  void _onSelectionAction(SelectionActionEvent e) {
+    if (e.actionId != 'pronounce') return;
+    final text = (e.selectedText ?? e.locator.text?.highlight ?? '').trim();
+    if (text.isEmpty || text.length > 60) return;
+    _fixPronunciation(text);
+  }
+
+  // ---- bookmarks (#48) ----
+
+  /// Where the reader is: the narrated sentence while a session is live,
+  /// otherwise the page being viewed (resolved like resume), falling back to
+  /// the narration start position.
+  BookPosition _currentPosition() {
+    final c = _narration;
+    if (c != null && c.isPlaying) {
+      return (spineIndex: _spineIndex, sentenceIndex: c.index);
+    }
+    final loc = _pendingLocator;
+    if (loc != null) {
+      final pos = resolveBookPosition(
+        spine: [
+          for (final ch in _spine)
+            (hrefHint: ch.hrefHint, sentences: ch.sentences)
+        ],
+        locatorHref: loc.href,
+        highlightText: loc.text?.highlight,
+        progression: loc.locations?.progression,
+      );
+      if (pos != null) return pos;
+    }
+    return (spineIndex: _spineIndex, sentenceIndex: c?.index ?? 0);
+  }
+
+  Future<void> _addBookmark() async {
+    final repo = _bookmarks;
+    if (repo == null || _spine.isEmpty) return;
+    final pos = _currentPosition();
+    final chapter = _spine[pos.spineIndex.clamp(0, _spine.length - 1)];
+    if (chapter.sentences.isEmpty) return;
+    final si = pos.sentenceIndex.clamp(0, chapter.sentences.length - 1);
+    await repo.add(
+      bookId: widget.book.id,
+      chapterHref: chapter.hrefHint,
+      sentenceIndex: si,
+      snippet: chapter.sentences[si],
+      createdAtMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Bookmark added')));
+  }
+
+  /// Jump to a bookmark: land on its sentence and highlight it; keep
+  /// narrating from there if narration was playing.
+  Future<void> _openBookmark(Bookmark b) async {
+    final spineIndex = _spine.indexWhere((c) => c.hrefHint == b.chapterHref);
+    if (spineIndex < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('That bookmark’s chapter couldn’t be found.')));
+      return;
+    }
+    final c = _narration!;
+    final wasPlaying = c.isPlaying && !c.isPaused;
+    await c.stop(); // a restart, not the end of the session (keeps sleep timer)
+    await _loadChapterAt(spineIndex, startSentence: b.sentenceIndex);
+    if (wasPlaying) {
+      await _startNarration();
+    } else {
+      await _highlightSentence(_narration!.index);
+    }
+  }
+
+  Future<void> _openBookmarks() async {
+    final repo = _bookmarks;
+    if (repo == null || _spine.isEmpty) return;
+    final titles = _chapterTitleList();
+    await showBookmarksSheet(
+      context,
+      repository: repo,
+      bookId: widget.book.id,
+      chapterTitle: (href) {
+        final i = _spine.indexWhere((c) => c.hrefHint == href);
+        return i < 0 ? '' : titles[i];
+      },
+      onAdd: _addBookmark,
+      onOpen: _openBookmark,
+    );
   }
 
   /// Open the Table of Contents and, if a chapter is chosen, jump to it (#12).
   Future<void> _openContents() async {
     if (_spine.isEmpty) return;
-    final toc = <TocEntry>[
-      for (final l in (_pub?.tocFlattened ?? const <Link>[]))
-        if (l.title != null) (href: l.href, title: l.title!),
-    ];
-    final titles = chapterTitles(
-      hrefHints: [for (final c in _spine) c.hrefHint],
-      toc: toc,
-    );
+    final titles = _chapterTitleList();
     final chosen = await showChapterPicker(
       context,
       titles: titles,
@@ -317,7 +508,21 @@ class _ReaderScreenState extends State<ReaderScreen>
     if (pub != null) _chapterHref = _hrefFor(pub, next.hrefHint);
     // Key the next chapter's timing builder before the controller swaps to it.
     _narration?.chapterHref = next.hrefHint;
+    _narration?.paragraphStarts = next.paragraphStarts;
     return next.sentences;
+  }
+
+  /// Controller callback for backward skips across a chapter start (#45):
+  /// step back one spine chapter, re-pointing the highlight target.
+  Future<List<String>> _previousChapterSentences() async {
+    if (_spineIndex <= 0) return const [];
+    _spineIndex--;
+    final prev = _spine[_spineIndex];
+    final pub = _pub;
+    if (pub != null) _chapterHref = _hrefFor(pub, prev.hrefHint);
+    _narration?.chapterHref = prev.hrefHint;
+    _narration?.paragraphStarts = prev.paragraphStarts;
+    return prev.sentences;
   }
 
   /// Side-effect-free peek for the controller's cross-chapter look-ahead
@@ -346,7 +551,50 @@ class _ReaderScreenState extends State<ReaderScreen>
     final loc = _pendingLocator;
     final repo = widget.repository;
     if (loc == null || repo == null) return;
-    await repo.updateLocator(widget.book.id, jsonEncode(loc.toJson()));
+    final progress = _bookProgressAt(loc);
+    // Submit both writes synchronously (no await in between) so they're queued
+    // ahead of the library's refresh query when the reader closes.
+    await Future.wait([
+      repo.updateLocator(widget.book.id, jsonEncode(loc.toJson())),
+      if (progress != null) repo.updateProgress(widget.book.id, progress),
+    ]);
+  }
+
+  /// Book progress (0..1) for the library card (#46): the narrated sentence
+  /// while a session is live, otherwise wherever the page locator resolves to.
+  double? _bookProgressAt(Locator loc) {
+    final length = _bookLength;
+    final c = _narration;
+    if (length == null || length.totalChars == 0) return null;
+    if (c != null && c.isPlaying) {
+      return length.fractionAt(spineIndex: _spineIndex, sentenceIndex: c.index);
+    }
+    final pos = resolveBookPosition(
+      spine: [
+        for (final ch in _spine) (hrefHint: ch.hrefHint, sentences: ch.sentences)
+      ],
+      locatorHref: loc.href,
+      highlightText: loc.text?.highlight,
+      progression: loc.locations?.progression,
+    );
+    if (pos == null) return null;
+    return length.fractionAt(
+        spineIndex: pos.spineIndex, sentenceIndex: pos.sentenceIndex);
+  }
+
+  /// Time left in chapter/book and % through the book, from the current
+  /// narration position (#46).
+  ProgressEstimate? _estimate() {
+    final length = _bookLength;
+    final c = _narration;
+    if (length == null || c == null || length.totalChars == 0) return null;
+    return length.estimate(
+      spineIndex: _spineIndex,
+      sentenceIndex: c.index,
+      speed: _speechSpeed,
+      chapterTimings: c.currentTimings,
+      msPerChar: c.msPerChar,
+    );
   }
 
   // ---- highlight ----
@@ -387,7 +635,16 @@ class _ReaderScreenState extends State<ReaderScreen>
     final i = resolveSentenceIndex(selected, [
       for (var k = 0; k < c.sentenceCount; k++) c.sentenceTextAt(k),
     ]);
-    if (i >= 0) await _handler!.seekToSentence(i);
+    if (i < 0) return;
+    if (c.isPlaying) {
+      await _handler!.seekToSentence(i);
+    } else {
+      // Idle: just move the start point (and highlight it) — Listen starts
+      // there. Auto-playing here went through an engine that may not be
+      // initialised yet ("speak() called before init()"), and selecting a
+      // word to fix its pronunciation (#47) shouldn't start narration.
+      await c.moveToSentence(i);
+    }
   }
 
   // ---- settings ----
@@ -447,6 +704,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     final vs = await store.load();
     vs.speechSpeed = v;
     await store.save(vs);
+    _handler?.controller.speechSpeed = v;
     await _handler?.controller.engine.setSpeed(v);
   }
 
@@ -474,6 +732,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     // The handler is process-wide; don't dispose it. Just detach this reader
     // (clears the highlight callback) and stop audio when leaving the reader.
     _handler?.controller.removeListener(_onNarrationChanged);
+    _handler?.sleepTimer.removeListener(_onNarrationChanged);
     _handler?.endSession();
     super.dispose();
   }
@@ -497,6 +756,11 @@ class _ReaderScreenState extends State<ReaderScreen>
             icon: const Icon(Icons.list, semanticLabel: 'Contents — jump to a chapter'),
           ),
           IconButton(
+            tooltip: 'Bookmarks',
+            onPressed: _spine.isEmpty ? null : _openBookmarks,
+            icon: const Icon(Icons.bookmarks_outlined),
+          ),
+          IconButton(
             tooltip: 'Reading settings',
             onPressed: _openSettings,
             icon: const Icon(Icons.text_format),
@@ -516,6 +780,11 @@ class _ReaderScreenState extends State<ReaderScreen>
           loadingWidget: const Center(child: CircularProgressIndicator()),
           // Tap-to-seek: selecting a sentence jumps narration to it.
           onTextSelected: _seekToSelection,
+          // "Fix pronunciation" in the text-selection menu (#47).
+          selectionActions: const [
+            SelectionAction(id: 'pronounce', title: 'Fix pronunciation'),
+          ],
+          onSelectionAction: _onSelectionAction,
         ),
       ),
       // When narration is active, the bottom bar carries the transport controls;
@@ -548,61 +817,286 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// Narration is "active" while playing or paused (the session is live).
   bool get _active => _narration?.isPlaying ?? false;
 
-  /// Transport bar: previous sentence / play-pause / next sentence / stop.
+  /// Two-row narration bar (v1.3 "option A"): an info row with progress and
+  /// time left plus quick settings, above large transport buttons.
   Widget _buildNarrationBar(BuildContext context) {
-    final c = _narration!;
-    final paused = c.isPaused;
-    return BottomAppBar(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          PopupMenuButton<double>(
-            tooltip: 'Narration speed',
-            initialValue: _speechSpeed,
-            onSelected: _setSpeed,
-            itemBuilder: (_) => [
-              for (final v in _speedOptions)
-                PopupMenuItem(value: v, child: Text(_speedLabel(v))),
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainer,
+      elevation: 3,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildInfoRow(context),
+              const SizedBox(height: 4),
+              _buildTransportRow(context),
             ],
-            child: Semantics(
-              label: 'Narration speed, ${_speedLabel(_speechSpeed)}',
-              button: true,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  _speedLabel(_speechSpeed),
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(BuildContext context) {
+    final theme = Theme.of(context);
+    final est = _estimate();
+    final pct = est == null ? null : (est.bookFraction * 100).floor();
+    final timeText = est == null
+        ? ''
+        : '${formatDurationShort(est.chapterRemaining)} left in chapter · '
+            '${formatDurationShort(est.bookRemaining)} in book';
+    final spoken = est == null
+        ? ''
+        : '${formatDurationSpoken(est.chapterRemaining)} left in chapter, '
+            '${formatDurationSpoken(est.bookRemaining)} left in book, '
+            '$pct percent through';
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Semantics(
+          label: spoken,
+          excludeSemantics: true,
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: est?.bookFraction ?? 0,
+                        minHeight: 6,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(pct == null ? '' : '$pct%',
+                      style: theme.textTheme.labelLarge),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(timeText, style: theme.textTheme.bodyMedium),
+              ),
+            ],
+          ),
+        ),
+        Row(
+          children: [
+            _buildSpeedChip(context),
+            const SizedBox(width: 8),
+            _buildSleepChip(context),
+            const Spacer(),
+            IconButton(
+              tooltip: 'Bookmark this sentence',
+              onPressed: _addBookmark,
+              icon: const Icon(Icons.bookmark_add_outlined),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Sleep timer chip (#44): shows the countdown (or "End of chapter") while
+  /// active; tapping opens presets, extend and cancel.
+  Widget _buildSleepChip(BuildContext context) {
+    final t = _handler!.sleepTimer;
+    final String label;
+    final String spoken;
+    if (t.endOfChapter) {
+      label = 'End of chapter';
+      spoken = 'Sleep timer, pausing at the end of this chapter';
+    } else if (t.remaining != null) {
+      label = formatCountdown(t.remaining!);
+      spoken = 'Sleep timer, ${formatDurationSpoken(t.remaining!)} left';
+    } else {
+      label = 'Sleep';
+      spoken = 'Sleep timer, off';
+    }
+    return PopupMenuButton<String>(
+      tooltip: 'Sleep timer',
+      onSelected: (v) {
+        switch (v) {
+          case 'extend':
+            t.extend();
+          case 'cancel':
+            t.cancel();
+          case 'chapter':
+            t.startEndOfChapter();
+          default:
+            t.start(Duration(minutes: int.parse(v)));
+        }
+      },
+      itemBuilder: (_) => [
+        if (t.isActive) ...[
+          PopupMenuItem(
+            value: 'extend',
+            child: Text('Add ${t.lastDuration.inMinutes} minutes'),
+          ),
+          const PopupMenuItem(value: 'cancel', child: Text('Turn off')),
+          const PopupMenuDivider(),
+        ],
+        for (final d in SleepTimer.presets)
+          PopupMenuItem(
+            value: '${d.inMinutes}',
+            child: Text('${d.inMinutes} minutes'),
+          ),
+        const PopupMenuItem(value: 'chapter', child: Text('End of chapter')),
+      ],
+      child: Semantics(
+        label: spoken,
+        button: true,
+        excludeSemantics: true,
+        child: Chip(
+          avatar: Icon(
+              t.isActive ? Icons.bedtime : Icons.bedtime_outlined,
+              size: 18),
+          label: Text(label),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpeedChip(BuildContext context) {
+    return PopupMenuButton<double>(
+      tooltip: 'Narration speed',
+      initialValue: _speechSpeed,
+      onSelected: _setSpeed,
+      itemBuilder: (_) => [
+        for (final v in _speedOptions)
+          PopupMenuItem(value: v, child: Text(_speedLabel(v))),
+      ],
+      child: Semantics(
+        label: 'Narration speed, ${_speedLabel(_speechSpeed)}',
+        button: true,
+        excludeSemantics: true,
+        child: Chip(
+          avatar: const Icon(Icons.speed, size: 18),
+          label: Text(_speedLabel(_speechSpeed)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransportRow(BuildContext context) {
+    final paused = _narration!.isPaused;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton(
+          tooltip: 'Back $_skipSeconds seconds',
+          onPressed: () => _handler!.rewind(),
+          icon: _SkipIcon(seconds: _skipSeconds, forward: false),
+        ),
+        IconButton(
+          tooltip: 'Previous sentence',
+          iconSize: 32,
+          onPressed: () => _handler!.skipToPrevious(),
+          icon: const Icon(Icons.skip_previous),
+        ),
+        IconButton.filled(
+          tooltip: paused ? 'Resume' : 'Pause',
+          iconSize: 36,
+          onPressed: _playPause,
+          icon: Icon(paused ? Icons.play_arrow : Icons.pause,
+              semanticLabel: paused ? 'Resume narration' : 'Pause narration'),
+        ),
+        IconButton(
+          tooltip: 'Next sentence',
+          iconSize: 32,
+          onPressed: () => _handler!.skipToNext(),
+          icon: const Icon(Icons.skip_next),
+        ),
+        IconButton(
+          tooltip: 'Forward $_skipSeconds seconds',
+          onPressed: () => _handler!.fastForward(),
+          icon: _SkipIcon(seconds: _skipSeconds, forward: true),
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'More narration options',
+          icon: const Icon(Icons.more_vert, size: 28),
+          onSelected: (v) {
+            switch (v) {
+              case 'prevPara':
+                _narration?.skipParagraph(-1);
+              case 'nextPara':
+                _narration?.skipParagraph(1);
+              case 'pronounce':
+                _fixPronunciationFromSentence();
+              case 'stop':
+                _handler!.stop();
+            }
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'prevPara',
+              child: ListTile(
+                leading: Icon(Icons.vertical_align_top),
+                title: Text('Previous paragraph'),
               ),
             ),
+            PopupMenuItem(
+              value: 'nextPara',
+              child: ListTile(
+                leading: Icon(Icons.vertical_align_bottom),
+                title: Text('Next paragraph'),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'pronounce',
+              child: ListTile(
+                leading: Icon(Icons.record_voice_over_outlined),
+                title: Text('Fix pronunciation…'),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'stop',
+              child: ListTile(
+                leading: Icon(Icons.stop),
+                title: Text('Stop narration'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+}
+
+/// Circular-arrow skip icon with the interval drawn inside (any of 10/15/30/60,
+/// which Material's fixed replay_N / forward_N icons don't all cover).
+class _SkipIcon extends StatelessWidget {
+  const _SkipIcon({required this.seconds, required this.forward});
+  final int seconds;
+  final bool forward;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = IconTheme.of(context).color;
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Transform.flip(
+            flipX: forward,
+            child: Icon(Icons.replay, size: 32, color: color),
           ),
-          IconButton(
-            tooltip: 'Previous sentence',
-            iconSize: 32,
-            onPressed: () => _handler!.skipToPrevious(),
-            icon: const Icon(Icons.skip_previous),
-          ),
-          IconButton.filled(
-            tooltip: paused ? 'Resume' : 'Pause',
-            iconSize: 32,
-            onPressed: _playPause,
-            icon: Icon(paused ? Icons.play_arrow : Icons.pause,
-                semanticLabel: paused ? 'Resume narration' : 'Pause narration'),
-          ),
-          IconButton(
-            tooltip: 'Next sentence',
-            iconSize: 32,
-            onPressed: () => _handler!.skipToNext(),
-            icon: const Icon(Icons.skip_next),
-          ),
-          IconButton(
-            tooltip: 'Stop',
-            iconSize: 32,
-            onPressed: () => _handler!.stop(),
-            icon: const Icon(Icons.stop, semanticLabel: 'Stop narration'),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '$seconds',
+              style: TextStyle(
+                  fontSize: 9, fontWeight: FontWeight.w700, color: color),
+            ),
           ),
         ],
       ),

@@ -2,9 +2,13 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 
 import '../sync/narration_controller.dart';
+import '../sync/sleep_timer.dart';
 import 'neural_narrator.dart';
 import 'switchable_tts_engine.dart';
 import 'system_narrator.dart';
+import 'text_normalizer.dart';
+import 'voice_catalog.dart';
+import 'voice_settings.dart';
 import 'voice_manager.dart';
 
 /// Bridges the sentence-based [NarrationController] to `audio_service`, so
@@ -24,6 +28,24 @@ class NarrationAudioHandler extends BaseAudioHandler {
 
   final NarrationController controller;
 
+  /// Sleep timer (#44). Lives with the handler (process-wide) so it keeps
+  /// counting with the screen locked or the reader backgrounded.
+  late final SleepTimer sleepTimer =
+      SleepTimer(controller, setVolume: _setFadeVolume);
+
+  // Volume = audio-focus ducking × sleep-timer fade, so a duck ending during
+  // the fade (or the fade ending during a duck) doesn't jump to full volume.
+  double _duckFactor = 1.0;
+  double _fadeFactor = 1.0;
+
+  Future<void> _applyVolume() =>
+      controller.engine.setVolume(_duckFactor * _fadeFactor);
+
+  Future<void> _setFadeVolume(double v) {
+    _fadeFactor = v;
+    return _applyVolume();
+  }
+
   /// Point the session at a book/chapter: its sentences, notification metadata,
   /// and the reader's highlight callback. Replaces any previous session.
   ///
@@ -38,12 +60,14 @@ class NarrationAudioHandler extends BaseAudioHandler {
     String voiceId = 'unknown',
     String chapterHref = '',
     int startSentence = 0,
+    List<int> paragraphStarts = const [],
     Future<void> Function(int index)? onHighlight,
   }) {
     controller.onHighlight = onHighlight;
     controller.voiceId = voiceId;
     controller.chapterHref = chapterHref;
-    controller.setSentences(sentences, startIndex: startSentence);
+    controller.setSentences(sentences,
+        startIndex: startSentence, paragraphStarts: paragraphStarts);
     mediaItem.add(MediaItem(id: bookId, title: title, artist: author));
   }
 
@@ -60,8 +84,12 @@ class NarrationAudioHandler extends BaseAudioHandler {
   @override
   Future<void> pause() => controller.pauseNarration();
 
+  /// Ends the session — the explicit "stop" (notification, ⋯ menu, leaving
+  /// the reader). Also turns off the sleep timer (#44); internal restarts use
+  /// `controller.stop()` and keep it.
   @override
   Future<void> stop() async {
+    sleepTimer.cancel();
     await controller.stop();
     await super.stop();
   }
@@ -75,6 +103,57 @@ class NarrationAudioHandler extends BaseAudioHandler {
   /// Seek narration to a specific sentence (tap-to-seek from the reader).
   Future<void> seekToSentence(int index) => controller.seekToSentence(index);
 
+  /// Re-read the persisted voice settings and apply them: route the engine to
+  /// the system TTS (#15) or a neural voice, and apply speed (#34) and the
+  /// listening preferences (#45). Called at reader open, on every Listen, and
+  /// before a pronunciation preview, so changes made in Settings apply
+  /// without reopening the book (#30).
+  Future<VoiceSettings> applyVoiceSettings({VoiceSettingsStore? store}) async {
+    final vs = await (store ?? VoiceSettingsStore()).load();
+    final id = vs.activeVoiceId;
+    final engine = controller.engine;
+    if (engine is SwitchableTtsEngine) {
+      if (id == kSystemVoiceId) {
+        await engine.useSystem();
+      } else {
+        await engine.useNeural(VoiceCatalog.byId(id) ?? VoiceCatalog.amyLow);
+      }
+    } else {
+      // Injected test engines aren't switchable; still forward the voice.
+      await engine
+          .setVoiceIfNeeded(VoiceCatalog.byId(id) ?? VoiceCatalog.amyLow);
+    }
+    // Keep the timing-cache key in step with the selection mid-session.
+    controller.voiceId = id;
+    controller.speechSpeed = vs.speechSpeed;
+    await engine.setSpeed(vs.speechSpeed);
+    skipInterval = Duration(seconds: vs.skipSeconds);
+    controller.autoRewind = vs.autoRewind;
+    return vs;
+  }
+
+  /// Speak [text] once with the current voice — the pronunciation preview
+  /// (#47). Stops any narration first (the session's position is kept), so
+  /// the preview never interleaves with a paused utterance.
+  Future<void> previewSpeech(String text, {VoiceSettingsStore? store}) async {
+    if (controller.isPlaying) await controller.stop(); // keeps the sleep timer
+    await applyVoiceSettings(store: store);
+    await controller.engine.init();
+    await controller.engine.speak(const TextNormalizer().normalize(text));
+  }
+
+  /// Time-skip interval for rewind / fast-forward (#45); the reader applies
+  /// the user's setting.
+  Duration skipInterval = const Duration(seconds: 30);
+
+  /// Lock-screen / headset rewind: skip back by [skipInterval] (#45).
+  @override
+  Future<void> rewind() => controller.skipTime(-skipInterval);
+
+  /// Lock-screen / headset fast-forward: skip ahead by [skipInterval] (#45).
+  @override
+  Future<void> fastForward() => controller.skipTime(skipInterval);
+
   // ---- audio focus / interruptions (#9) ----
 
   static const double _duckVolume = 0.3;
@@ -87,7 +166,8 @@ class NarrationAudioHandler extends BaseAudioHandler {
     if (event.begin) {
       switch (event.type) {
         case AudioInterruptionType.duck:
-          await controller.engine.setVolume(_duckVolume);
+          _duckFactor = _duckVolume;
+          await _applyVolume();
         case AudioInterruptionType.pause:
         case AudioInterruptionType.unknown:
           _resumeAfterInterruption = controller.isPlaying && !controller.isPaused;
@@ -96,7 +176,8 @@ class NarrationAudioHandler extends BaseAudioHandler {
     } else {
       switch (event.type) {
         case AudioInterruptionType.duck:
-          await controller.engine.setVolume(1.0);
+          _duckFactor = 1.0;
+          await _applyVolume();
         case AudioInterruptionType.pause:
         case AudioInterruptionType.unknown:
           if (_resumeAfterInterruption) {
@@ -116,15 +197,21 @@ class NarrationAudioHandler extends BaseAudioHandler {
   void _broadcast() {
     final playing = controller.isPlaying && !controller.isPaused;
     playbackState.add(playbackState.value.copyWith(
+      // Time skip (#45) is the most useful lock-screen control, so the compact
+      // view shows rewind / play-pause / fast-forward, plus Stop to end the
+      // session. Sentence skip stays on headset next/previous (systemActions).
       controls: [
-        MediaControl.skipToPrevious,
+        MediaControl.rewind,
         if (playing) MediaControl.pause else MediaControl.play,
-        MediaControl.skipToNext,
+        MediaControl.fastForward,
         MediaControl.stop,
       ],
       systemActions: const {
         MediaAction.skipToNext,
         MediaAction.skipToPrevious,
+        MediaAction.rewind,
+        MediaAction.fastForward,
+        MediaAction.stop,
       },
       androidCompactActionIndices: const [0, 1, 2],
       // Surface synth stalls as buffering (#40) so the lock screen shows a

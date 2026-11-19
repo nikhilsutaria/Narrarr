@@ -110,6 +110,28 @@ void main() {
     await c.stop();
   });
 
+  test('timings are normalised to 1x and feed a live ms-per-char rate (#46)',
+      () async {
+    final fake = FakeTtsEngine();
+    // Played at 2x: each 10-char sentence took 500 ms → 1000 ms at 1x.
+    fake.durations.addAll([500, 500]);
+    final c = NarrationController(engine: fake)..speechSpeed = 2.0;
+    c.setSentences(['0123456789', 'abcdefghij', 'tail']);
+    expect(c.msPerChar, isNull, reason: 'nothing measured yet');
+
+    unawaited(c.play());
+    await pumpEventQueue();
+    fake.finishCurrent();
+    await pumpEventQueue();
+    expect(c.msPerChar, isNull, reason: 'one sentence is too few');
+    fake.finishCurrent();
+    await pumpEventQueue();
+
+    expect(c.currentTimings!.sentences.map((s) => s.durationMs), [1000, 1000]);
+    expect(c.msPerChar, closeTo(100, 1e-9));
+    await c.stop();
+  });
+
   test('finalizes timings on chapter roll-over via onChapterTimed', () async {
     final fake = FakeTtsEngine();
     final finished = <ChapterTimings>[];

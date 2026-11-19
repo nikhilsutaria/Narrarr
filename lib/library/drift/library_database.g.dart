@@ -95,6 +95,17 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _progressMeta = const VerificationMeta(
+    'progress',
+  );
+  @override
+  late final GeneratedColumn<double> progress = GeneratedColumn<double>(
+    'progress',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -105,6 +116,7 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
     addedAtMs,
     lastLocatorJson,
     isBundledSample,
+    progress,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -175,6 +187,12 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
         ),
       );
     }
+    if (data.containsKey('progress')) {
+      context.handle(
+        _progressMeta,
+        progress.isAcceptableOrUnknown(data['progress']!, _progressMeta),
+      );
+    }
     return context;
   }
 
@@ -216,6 +234,10 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_bundled_sample'],
       )!,
+      progress: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}progress'],
+      ),
     );
   }
 
@@ -234,6 +256,9 @@ class BookRow extends DataClass implements Insertable<BookRow> {
   final int addedAtMs;
   final String? lastLocatorJson;
   final bool isBundledSample;
+
+  /// Fraction of the book's narratable text read so far (#46; schema v3).
+  final double? progress;
   const BookRow({
     required this.id,
     required this.title,
@@ -243,6 +268,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     required this.addedAtMs,
     this.lastLocatorJson,
     required this.isBundledSample,
+    this.progress,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -261,6 +287,9 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       map['last_locator_json'] = Variable<String>(lastLocatorJson);
     }
     map['is_bundled_sample'] = Variable<bool>(isBundledSample);
+    if (!nullToAbsent || progress != null) {
+      map['progress'] = Variable<double>(progress);
+    }
     return map;
   }
 
@@ -280,6 +309,9 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           ? const Value.absent()
           : Value(lastLocatorJson),
       isBundledSample: Value(isBundledSample),
+      progress: progress == null && nullToAbsent
+          ? const Value.absent()
+          : Value(progress),
     );
   }
 
@@ -297,6 +329,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       addedAtMs: serializer.fromJson<int>(json['addedAtMs']),
       lastLocatorJson: serializer.fromJson<String?>(json['lastLocatorJson']),
       isBundledSample: serializer.fromJson<bool>(json['isBundledSample']),
+      progress: serializer.fromJson<double?>(json['progress']),
     );
   }
   @override
@@ -311,6 +344,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       'addedAtMs': serializer.toJson<int>(addedAtMs),
       'lastLocatorJson': serializer.toJson<String?>(lastLocatorJson),
       'isBundledSample': serializer.toJson<bool>(isBundledSample),
+      'progress': serializer.toJson<double?>(progress),
     };
   }
 
@@ -323,6 +357,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     int? addedAtMs,
     Value<String?> lastLocatorJson = const Value.absent(),
     bool? isBundledSample,
+    Value<double?> progress = const Value.absent(),
   }) => BookRow(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -334,6 +369,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
         ? lastLocatorJson.value
         : this.lastLocatorJson,
     isBundledSample: isBundledSample ?? this.isBundledSample,
+    progress: progress.present ? progress.value : this.progress,
   );
   BookRow copyWithCompanion(BooksCompanion data) {
     return BookRow(
@@ -349,6 +385,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       isBundledSample: data.isBundledSample.present
           ? data.isBundledSample.value
           : this.isBundledSample,
+      progress: data.progress.present ? data.progress.value : this.progress,
     );
   }
 
@@ -362,7 +399,8 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           ..write('coverPath: $coverPath, ')
           ..write('addedAtMs: $addedAtMs, ')
           ..write('lastLocatorJson: $lastLocatorJson, ')
-          ..write('isBundledSample: $isBundledSample')
+          ..write('isBundledSample: $isBundledSample, ')
+          ..write('progress: $progress')
           ..write(')'))
         .toString();
   }
@@ -377,6 +415,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     addedAtMs,
     lastLocatorJson,
     isBundledSample,
+    progress,
   );
   @override
   bool operator ==(Object other) =>
@@ -389,7 +428,8 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           other.coverPath == this.coverPath &&
           other.addedAtMs == this.addedAtMs &&
           other.lastLocatorJson == this.lastLocatorJson &&
-          other.isBundledSample == this.isBundledSample);
+          other.isBundledSample == this.isBundledSample &&
+          other.progress == this.progress);
 }
 
 class BooksCompanion extends UpdateCompanion<BookRow> {
@@ -401,6 +441,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
   final Value<int> addedAtMs;
   final Value<String?> lastLocatorJson;
   final Value<bool> isBundledSample;
+  final Value<double?> progress;
   final Value<int> rowid;
   const BooksCompanion({
     this.id = const Value.absent(),
@@ -411,6 +452,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     this.addedAtMs = const Value.absent(),
     this.lastLocatorJson = const Value.absent(),
     this.isBundledSample = const Value.absent(),
+    this.progress = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BooksCompanion.insert({
@@ -422,6 +464,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     this.addedAtMs = const Value.absent(),
     this.lastLocatorJson = const Value.absent(),
     this.isBundledSample = const Value.absent(),
+    this.progress = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -435,6 +478,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     Expression<int>? addedAtMs,
     Expression<String>? lastLocatorJson,
     Expression<bool>? isBundledSample,
+    Expression<double>? progress,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -446,6 +490,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
       if (addedAtMs != null) 'added_at_ms': addedAtMs,
       if (lastLocatorJson != null) 'last_locator_json': lastLocatorJson,
       if (isBundledSample != null) 'is_bundled_sample': isBundledSample,
+      if (progress != null) 'progress': progress,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -459,6 +504,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     Value<int>? addedAtMs,
     Value<String?>? lastLocatorJson,
     Value<bool>? isBundledSample,
+    Value<double?>? progress,
     Value<int>? rowid,
   }) {
     return BooksCompanion(
@@ -470,6 +516,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
       addedAtMs: addedAtMs ?? this.addedAtMs,
       lastLocatorJson: lastLocatorJson ?? this.lastLocatorJson,
       isBundledSample: isBundledSample ?? this.isBundledSample,
+      progress: progress ?? this.progress,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -501,6 +548,9 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     if (isBundledSample.present) {
       map['is_bundled_sample'] = Variable<bool>(isBundledSample.value);
     }
+    if (progress.present) {
+      map['progress'] = Variable<double>(progress.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -518,6 +568,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
           ..write('addedAtMs: $addedAtMs, ')
           ..write('lastLocatorJson: $lastLocatorJson, ')
           ..write('isBundledSample: $isBundledSample, ')
+          ..write('progress: $progress, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -961,6 +1012,833 @@ class SentenceTimingsCompanion extends UpdateCompanion<SentenceTimingRow> {
   }
 }
 
+class $BookmarksTable extends Bookmarks
+    with TableInfo<$BookmarksTable, BookmarkRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BookmarksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _chapterHrefMeta = const VerificationMeta(
+    'chapterHref',
+  );
+  @override
+  late final GeneratedColumn<String> chapterHref = GeneratedColumn<String>(
+    'chapter_href',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sentenceIndexMeta = const VerificationMeta(
+    'sentenceIndex',
+  );
+  @override
+  late final GeneratedColumn<int> sentenceIndex = GeneratedColumn<int>(
+    'sentence_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _snippetMeta = const VerificationMeta(
+    'snippet',
+  );
+  @override
+  late final GeneratedColumn<String> snippet = GeneratedColumn<String>(
+    'snippet',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMsMeta = const VerificationMeta(
+    'createdAtMs',
+  );
+  @override
+  late final GeneratedColumn<int> createdAtMs = GeneratedColumn<int>(
+    'created_at_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    bookId,
+    chapterHref,
+    sentenceIndex,
+    snippet,
+    createdAtMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'bookmarks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BookmarkRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('chapter_href')) {
+      context.handle(
+        _chapterHrefMeta,
+        chapterHref.isAcceptableOrUnknown(
+          data['chapter_href']!,
+          _chapterHrefMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_chapterHrefMeta);
+    }
+    if (data.containsKey('sentence_index')) {
+      context.handle(
+        _sentenceIndexMeta,
+        sentenceIndex.isAcceptableOrUnknown(
+          data['sentence_index']!,
+          _sentenceIndexMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_sentenceIndexMeta);
+    }
+    if (data.containsKey('snippet')) {
+      context.handle(
+        _snippetMeta,
+        snippet.isAcceptableOrUnknown(data['snippet']!, _snippetMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_snippetMeta);
+    }
+    if (data.containsKey('created_at_ms')) {
+      context.handle(
+        _createdAtMsMeta,
+        createdAtMs.isAcceptableOrUnknown(
+          data['created_at_ms']!,
+          _createdAtMsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BookmarkRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BookmarkRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      )!,
+      chapterHref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}chapter_href'],
+      )!,
+      sentenceIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sentence_index'],
+      )!,
+      snippet: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snippet'],
+      )!,
+      createdAtMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $BookmarksTable createAlias(String alias) {
+    return $BookmarksTable(attachedDatabase, alias);
+  }
+}
+
+class BookmarkRow extends DataClass implements Insertable<BookmarkRow> {
+  final int id;
+  final String bookId;
+  final String chapterHref;
+  final int sentenceIndex;
+  final String snippet;
+  final int createdAtMs;
+  const BookmarkRow({
+    required this.id,
+    required this.bookId,
+    required this.chapterHref,
+    required this.sentenceIndex,
+    required this.snippet,
+    required this.createdAtMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['book_id'] = Variable<String>(bookId);
+    map['chapter_href'] = Variable<String>(chapterHref);
+    map['sentence_index'] = Variable<int>(sentenceIndex);
+    map['snippet'] = Variable<String>(snippet);
+    map['created_at_ms'] = Variable<int>(createdAtMs);
+    return map;
+  }
+
+  BookmarksCompanion toCompanion(bool nullToAbsent) {
+    return BookmarksCompanion(
+      id: Value(id),
+      bookId: Value(bookId),
+      chapterHref: Value(chapterHref),
+      sentenceIndex: Value(sentenceIndex),
+      snippet: Value(snippet),
+      createdAtMs: Value(createdAtMs),
+    );
+  }
+
+  factory BookmarkRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BookmarkRow(
+      id: serializer.fromJson<int>(json['id']),
+      bookId: serializer.fromJson<String>(json['bookId']),
+      chapterHref: serializer.fromJson<String>(json['chapterHref']),
+      sentenceIndex: serializer.fromJson<int>(json['sentenceIndex']),
+      snippet: serializer.fromJson<String>(json['snippet']),
+      createdAtMs: serializer.fromJson<int>(json['createdAtMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'bookId': serializer.toJson<String>(bookId),
+      'chapterHref': serializer.toJson<String>(chapterHref),
+      'sentenceIndex': serializer.toJson<int>(sentenceIndex),
+      'snippet': serializer.toJson<String>(snippet),
+      'createdAtMs': serializer.toJson<int>(createdAtMs),
+    };
+  }
+
+  BookmarkRow copyWith({
+    int? id,
+    String? bookId,
+    String? chapterHref,
+    int? sentenceIndex,
+    String? snippet,
+    int? createdAtMs,
+  }) => BookmarkRow(
+    id: id ?? this.id,
+    bookId: bookId ?? this.bookId,
+    chapterHref: chapterHref ?? this.chapterHref,
+    sentenceIndex: sentenceIndex ?? this.sentenceIndex,
+    snippet: snippet ?? this.snippet,
+    createdAtMs: createdAtMs ?? this.createdAtMs,
+  );
+  BookmarkRow copyWithCompanion(BookmarksCompanion data) {
+    return BookmarkRow(
+      id: data.id.present ? data.id.value : this.id,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      chapterHref: data.chapterHref.present
+          ? data.chapterHref.value
+          : this.chapterHref,
+      sentenceIndex: data.sentenceIndex.present
+          ? data.sentenceIndex.value
+          : this.sentenceIndex,
+      snippet: data.snippet.present ? data.snippet.value : this.snippet,
+      createdAtMs: data.createdAtMs.present
+          ? data.createdAtMs.value
+          : this.createdAtMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookmarkRow(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('chapterHref: $chapterHref, ')
+          ..write('sentenceIndex: $sentenceIndex, ')
+          ..write('snippet: $snippet, ')
+          ..write('createdAtMs: $createdAtMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, bookId, chapterHref, sentenceIndex, snippet, createdAtMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BookmarkRow &&
+          other.id == this.id &&
+          other.bookId == this.bookId &&
+          other.chapterHref == this.chapterHref &&
+          other.sentenceIndex == this.sentenceIndex &&
+          other.snippet == this.snippet &&
+          other.createdAtMs == this.createdAtMs);
+}
+
+class BookmarksCompanion extends UpdateCompanion<BookmarkRow> {
+  final Value<int> id;
+  final Value<String> bookId;
+  final Value<String> chapterHref;
+  final Value<int> sentenceIndex;
+  final Value<String> snippet;
+  final Value<int> createdAtMs;
+  const BookmarksCompanion({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.chapterHref = const Value.absent(),
+    this.sentenceIndex = const Value.absent(),
+    this.snippet = const Value.absent(),
+    this.createdAtMs = const Value.absent(),
+  });
+  BookmarksCompanion.insert({
+    this.id = const Value.absent(),
+    required String bookId,
+    required String chapterHref,
+    required int sentenceIndex,
+    required String snippet,
+    required int createdAtMs,
+  }) : bookId = Value(bookId),
+       chapterHref = Value(chapterHref),
+       sentenceIndex = Value(sentenceIndex),
+       snippet = Value(snippet),
+       createdAtMs = Value(createdAtMs);
+  static Insertable<BookmarkRow> custom({
+    Expression<int>? id,
+    Expression<String>? bookId,
+    Expression<String>? chapterHref,
+    Expression<int>? sentenceIndex,
+    Expression<String>? snippet,
+    Expression<int>? createdAtMs,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bookId != null) 'book_id': bookId,
+      if (chapterHref != null) 'chapter_href': chapterHref,
+      if (sentenceIndex != null) 'sentence_index': sentenceIndex,
+      if (snippet != null) 'snippet': snippet,
+      if (createdAtMs != null) 'created_at_ms': createdAtMs,
+    });
+  }
+
+  BookmarksCompanion copyWith({
+    Value<int>? id,
+    Value<String>? bookId,
+    Value<String>? chapterHref,
+    Value<int>? sentenceIndex,
+    Value<String>? snippet,
+    Value<int>? createdAtMs,
+  }) {
+    return BookmarksCompanion(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      chapterHref: chapterHref ?? this.chapterHref,
+      sentenceIndex: sentenceIndex ?? this.sentenceIndex,
+      snippet: snippet ?? this.snippet,
+      createdAtMs: createdAtMs ?? this.createdAtMs,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (chapterHref.present) {
+      map['chapter_href'] = Variable<String>(chapterHref.value);
+    }
+    if (sentenceIndex.present) {
+      map['sentence_index'] = Variable<int>(sentenceIndex.value);
+    }
+    if (snippet.present) {
+      map['snippet'] = Variable<String>(snippet.value);
+    }
+    if (createdAtMs.present) {
+      map['created_at_ms'] = Variable<int>(createdAtMs.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookmarksCompanion(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('chapterHref: $chapterHref, ')
+          ..write('sentenceIndex: $sentenceIndex, ')
+          ..write('snippet: $snippet, ')
+          ..write('createdAtMs: $createdAtMs')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PronunciationsTable extends Pronunciations
+    with TableInfo<$PronunciationsTable, PronunciationRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PronunciationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _wordMeta = const VerificationMeta('word');
+  @override
+  late final GeneratedColumn<String> word = GeneratedColumn<String>(
+    'word',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _replacementMeta = const VerificationMeta(
+    'replacement',
+  );
+  @override
+  late final GeneratedColumn<String> replacement = GeneratedColumn<String>(
+    'replacement',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _caseSensitiveMeta = const VerificationMeta(
+    'caseSensitive',
+  );
+  @override
+  late final GeneratedColumn<bool> caseSensitive = GeneratedColumn<bool>(
+    'case_sensitive',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("case_sensitive" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMsMeta = const VerificationMeta(
+    'createdAtMs',
+  );
+  @override
+  late final GeneratedColumn<int> createdAtMs = GeneratedColumn<int>(
+    'created_at_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    bookId,
+    word,
+    replacement,
+    caseSensitive,
+    createdAtMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pronunciations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PronunciationRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    }
+    if (data.containsKey('word')) {
+      context.handle(
+        _wordMeta,
+        word.isAcceptableOrUnknown(data['word']!, _wordMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_wordMeta);
+    }
+    if (data.containsKey('replacement')) {
+      context.handle(
+        _replacementMeta,
+        replacement.isAcceptableOrUnknown(
+          data['replacement']!,
+          _replacementMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_replacementMeta);
+    }
+    if (data.containsKey('case_sensitive')) {
+      context.handle(
+        _caseSensitiveMeta,
+        caseSensitive.isAcceptableOrUnknown(
+          data['case_sensitive']!,
+          _caseSensitiveMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at_ms')) {
+      context.handle(
+        _createdAtMsMeta,
+        createdAtMs.isAcceptableOrUnknown(
+          data['created_at_ms']!,
+          _createdAtMsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PronunciationRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PronunciationRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      ),
+      word: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}word'],
+      )!,
+      replacement: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}replacement'],
+      )!,
+      caseSensitive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}case_sensitive'],
+      )!,
+      createdAtMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $PronunciationsTable createAlias(String alias) {
+    return $PronunciationsTable(attachedDatabase, alias);
+  }
+}
+
+class PronunciationRow extends DataClass
+    implements Insertable<PronunciationRow> {
+  final int id;
+  final String? bookId;
+  final String word;
+  final String replacement;
+  final bool caseSensitive;
+  final int createdAtMs;
+  const PronunciationRow({
+    required this.id,
+    this.bookId,
+    required this.word,
+    required this.replacement,
+    required this.caseSensitive,
+    required this.createdAtMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || bookId != null) {
+      map['book_id'] = Variable<String>(bookId);
+    }
+    map['word'] = Variable<String>(word);
+    map['replacement'] = Variable<String>(replacement);
+    map['case_sensitive'] = Variable<bool>(caseSensitive);
+    map['created_at_ms'] = Variable<int>(createdAtMs);
+    return map;
+  }
+
+  PronunciationsCompanion toCompanion(bool nullToAbsent) {
+    return PronunciationsCompanion(
+      id: Value(id),
+      bookId: bookId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bookId),
+      word: Value(word),
+      replacement: Value(replacement),
+      caseSensitive: Value(caseSensitive),
+      createdAtMs: Value(createdAtMs),
+    );
+  }
+
+  factory PronunciationRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PronunciationRow(
+      id: serializer.fromJson<int>(json['id']),
+      bookId: serializer.fromJson<String?>(json['bookId']),
+      word: serializer.fromJson<String>(json['word']),
+      replacement: serializer.fromJson<String>(json['replacement']),
+      caseSensitive: serializer.fromJson<bool>(json['caseSensitive']),
+      createdAtMs: serializer.fromJson<int>(json['createdAtMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'bookId': serializer.toJson<String?>(bookId),
+      'word': serializer.toJson<String>(word),
+      'replacement': serializer.toJson<String>(replacement),
+      'caseSensitive': serializer.toJson<bool>(caseSensitive),
+      'createdAtMs': serializer.toJson<int>(createdAtMs),
+    };
+  }
+
+  PronunciationRow copyWith({
+    int? id,
+    Value<String?> bookId = const Value.absent(),
+    String? word,
+    String? replacement,
+    bool? caseSensitive,
+    int? createdAtMs,
+  }) => PronunciationRow(
+    id: id ?? this.id,
+    bookId: bookId.present ? bookId.value : this.bookId,
+    word: word ?? this.word,
+    replacement: replacement ?? this.replacement,
+    caseSensitive: caseSensitive ?? this.caseSensitive,
+    createdAtMs: createdAtMs ?? this.createdAtMs,
+  );
+  PronunciationRow copyWithCompanion(PronunciationsCompanion data) {
+    return PronunciationRow(
+      id: data.id.present ? data.id.value : this.id,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      word: data.word.present ? data.word.value : this.word,
+      replacement: data.replacement.present
+          ? data.replacement.value
+          : this.replacement,
+      caseSensitive: data.caseSensitive.present
+          ? data.caseSensitive.value
+          : this.caseSensitive,
+      createdAtMs: data.createdAtMs.present
+          ? data.createdAtMs.value
+          : this.createdAtMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PronunciationRow(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('word: $word, ')
+          ..write('replacement: $replacement, ')
+          ..write('caseSensitive: $caseSensitive, ')
+          ..write('createdAtMs: $createdAtMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, bookId, word, replacement, caseSensitive, createdAtMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PronunciationRow &&
+          other.id == this.id &&
+          other.bookId == this.bookId &&
+          other.word == this.word &&
+          other.replacement == this.replacement &&
+          other.caseSensitive == this.caseSensitive &&
+          other.createdAtMs == this.createdAtMs);
+}
+
+class PronunciationsCompanion extends UpdateCompanion<PronunciationRow> {
+  final Value<int> id;
+  final Value<String?> bookId;
+  final Value<String> word;
+  final Value<String> replacement;
+  final Value<bool> caseSensitive;
+  final Value<int> createdAtMs;
+  const PronunciationsCompanion({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.word = const Value.absent(),
+    this.replacement = const Value.absent(),
+    this.caseSensitive = const Value.absent(),
+    this.createdAtMs = const Value.absent(),
+  });
+  PronunciationsCompanion.insert({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    required String word,
+    required String replacement,
+    this.caseSensitive = const Value.absent(),
+    required int createdAtMs,
+  }) : word = Value(word),
+       replacement = Value(replacement),
+       createdAtMs = Value(createdAtMs);
+  static Insertable<PronunciationRow> custom({
+    Expression<int>? id,
+    Expression<String>? bookId,
+    Expression<String>? word,
+    Expression<String>? replacement,
+    Expression<bool>? caseSensitive,
+    Expression<int>? createdAtMs,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bookId != null) 'book_id': bookId,
+      if (word != null) 'word': word,
+      if (replacement != null) 'replacement': replacement,
+      if (caseSensitive != null) 'case_sensitive': caseSensitive,
+      if (createdAtMs != null) 'created_at_ms': createdAtMs,
+    });
+  }
+
+  PronunciationsCompanion copyWith({
+    Value<int>? id,
+    Value<String?>? bookId,
+    Value<String>? word,
+    Value<String>? replacement,
+    Value<bool>? caseSensitive,
+    Value<int>? createdAtMs,
+  }) {
+    return PronunciationsCompanion(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      word: word ?? this.word,
+      replacement: replacement ?? this.replacement,
+      caseSensitive: caseSensitive ?? this.caseSensitive,
+      createdAtMs: createdAtMs ?? this.createdAtMs,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (word.present) {
+      map['word'] = Variable<String>(word.value);
+    }
+    if (replacement.present) {
+      map['replacement'] = Variable<String>(replacement.value);
+    }
+    if (caseSensitive.present) {
+      map['case_sensitive'] = Variable<bool>(caseSensitive.value);
+    }
+    if (createdAtMs.present) {
+      map['created_at_ms'] = Variable<int>(createdAtMs.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PronunciationsCompanion(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('word: $word, ')
+          ..write('replacement: $replacement, ')
+          ..write('caseSensitive: $caseSensitive, ')
+          ..write('createdAtMs: $createdAtMs')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$LibraryDatabase extends GeneratedDatabase {
   _$LibraryDatabase(QueryExecutor e) : super(e);
   $LibraryDatabaseManager get managers => $LibraryDatabaseManager(this);
@@ -968,11 +1846,18 @@ abstract class _$LibraryDatabase extends GeneratedDatabase {
   late final $SentenceTimingsTable sentenceTimings = $SentenceTimingsTable(
     this,
   );
+  late final $BookmarksTable bookmarks = $BookmarksTable(this);
+  late final $PronunciationsTable pronunciations = $PronunciationsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [books, sentenceTimings];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+    books,
+    sentenceTimings,
+    bookmarks,
+    pronunciations,
+  ];
 }
 
 typedef $$BooksTableCreateCompanionBuilder =
@@ -985,6 +1870,7 @@ typedef $$BooksTableCreateCompanionBuilder =
       Value<int> addedAtMs,
       Value<String?> lastLocatorJson,
       Value<bool> isBundledSample,
+      Value<double?> progress,
       Value<int> rowid,
     });
 typedef $$BooksTableUpdateCompanionBuilder =
@@ -997,6 +1883,7 @@ typedef $$BooksTableUpdateCompanionBuilder =
       Value<int> addedAtMs,
       Value<String?> lastLocatorJson,
       Value<bool> isBundledSample,
+      Value<double?> progress,
       Value<int> rowid,
     });
 
@@ -1046,6 +1933,11 @@ class $$BooksTableFilterComposer
 
   ColumnFilters<bool> get isBundledSample => $composableBuilder(
     column: $table.isBundledSample,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get progress => $composableBuilder(
+    column: $table.progress,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1098,6 +1990,11 @@ class $$BooksTableOrderingComposer
     column: $table.isBundledSample,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<double> get progress => $composableBuilder(
+    column: $table.progress,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BooksTableAnnotationComposer
@@ -1136,6 +2033,9 @@ class $$BooksTableAnnotationComposer
     column: $table.isBundledSample,
     builder: (column) => column,
   );
+
+  GeneratedColumn<double> get progress =>
+      $composableBuilder(column: $table.progress, builder: (column) => column);
 }
 
 class $$BooksTableTableManager
@@ -1174,6 +2074,7 @@ class $$BooksTableTableManager
                 Value<int> addedAtMs = const Value.absent(),
                 Value<String?> lastLocatorJson = const Value.absent(),
                 Value<bool> isBundledSample = const Value.absent(),
+                Value<double?> progress = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksCompanion(
                 id: id,
@@ -1184,6 +2085,7 @@ class $$BooksTableTableManager
                 addedAtMs: addedAtMs,
                 lastLocatorJson: lastLocatorJson,
                 isBundledSample: isBundledSample,
+                progress: progress,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1196,6 +2098,7 @@ class $$BooksTableTableManager
                 Value<int> addedAtMs = const Value.absent(),
                 Value<String?> lastLocatorJson = const Value.absent(),
                 Value<bool> isBundledSample = const Value.absent(),
+                Value<double?> progress = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksCompanion.insert(
                 id: id,
@@ -1206,6 +2109,7 @@ class $$BooksTableTableManager
                 addedAtMs: addedAtMs,
                 lastLocatorJson: lastLocatorJson,
                 isBundledSample: isBundledSample,
+                progress: progress,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -1465,6 +2369,454 @@ typedef $$SentenceTimingsTableProcessedTableManager =
       SentenceTimingRow,
       PrefetchHooks Function()
     >;
+typedef $$BookmarksTableCreateCompanionBuilder =
+    BookmarksCompanion Function({
+      Value<int> id,
+      required String bookId,
+      required String chapterHref,
+      required int sentenceIndex,
+      required String snippet,
+      required int createdAtMs,
+    });
+typedef $$BookmarksTableUpdateCompanionBuilder =
+    BookmarksCompanion Function({
+      Value<int> id,
+      Value<String> bookId,
+      Value<String> chapterHref,
+      Value<int> sentenceIndex,
+      Value<String> snippet,
+      Value<int> createdAtMs,
+    });
+
+class $$BookmarksTableFilterComposer
+    extends Composer<_$LibraryDatabase, $BookmarksTable> {
+  $$BookmarksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get chapterHref => $composableBuilder(
+    column: $table.chapterHref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sentenceIndex => $composableBuilder(
+    column: $table.sentenceIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get snippet => $composableBuilder(
+    column: $table.snippet,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BookmarksTableOrderingComposer
+    extends Composer<_$LibraryDatabase, $BookmarksTable> {
+  $$BookmarksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get chapterHref => $composableBuilder(
+    column: $table.chapterHref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sentenceIndex => $composableBuilder(
+    column: $table.sentenceIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get snippet => $composableBuilder(
+    column: $table.snippet,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BookmarksTableAnnotationComposer
+    extends Composer<_$LibraryDatabase, $BookmarksTable> {
+  $$BookmarksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<String> get chapterHref => $composableBuilder(
+    column: $table.chapterHref,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sentenceIndex => $composableBuilder(
+    column: $table.sentenceIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get snippet =>
+      $composableBuilder(column: $table.snippet, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => column,
+  );
+}
+
+class $$BookmarksTableTableManager
+    extends
+        RootTableManager<
+          _$LibraryDatabase,
+          $BookmarksTable,
+          BookmarkRow,
+          $$BookmarksTableFilterComposer,
+          $$BookmarksTableOrderingComposer,
+          $$BookmarksTableAnnotationComposer,
+          $$BookmarksTableCreateCompanionBuilder,
+          $$BookmarksTableUpdateCompanionBuilder,
+          (
+            BookmarkRow,
+            BaseReferences<_$LibraryDatabase, $BookmarksTable, BookmarkRow>,
+          ),
+          BookmarkRow,
+          PrefetchHooks Function()
+        > {
+  $$BookmarksTableTableManager(_$LibraryDatabase db, $BookmarksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BookmarksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BookmarksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BookmarksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> bookId = const Value.absent(),
+                Value<String> chapterHref = const Value.absent(),
+                Value<int> sentenceIndex = const Value.absent(),
+                Value<String> snippet = const Value.absent(),
+                Value<int> createdAtMs = const Value.absent(),
+              }) => BookmarksCompanion(
+                id: id,
+                bookId: bookId,
+                chapterHref: chapterHref,
+                sentenceIndex: sentenceIndex,
+                snippet: snippet,
+                createdAtMs: createdAtMs,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String bookId,
+                required String chapterHref,
+                required int sentenceIndex,
+                required String snippet,
+                required int createdAtMs,
+              }) => BookmarksCompanion.insert(
+                id: id,
+                bookId: bookId,
+                chapterHref: chapterHref,
+                sentenceIndex: sentenceIndex,
+                snippet: snippet,
+                createdAtMs: createdAtMs,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BookmarksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LibraryDatabase,
+      $BookmarksTable,
+      BookmarkRow,
+      $$BookmarksTableFilterComposer,
+      $$BookmarksTableOrderingComposer,
+      $$BookmarksTableAnnotationComposer,
+      $$BookmarksTableCreateCompanionBuilder,
+      $$BookmarksTableUpdateCompanionBuilder,
+      (
+        BookmarkRow,
+        BaseReferences<_$LibraryDatabase, $BookmarksTable, BookmarkRow>,
+      ),
+      BookmarkRow,
+      PrefetchHooks Function()
+    >;
+typedef $$PronunciationsTableCreateCompanionBuilder =
+    PronunciationsCompanion Function({
+      Value<int> id,
+      Value<String?> bookId,
+      required String word,
+      required String replacement,
+      Value<bool> caseSensitive,
+      required int createdAtMs,
+    });
+typedef $$PronunciationsTableUpdateCompanionBuilder =
+    PronunciationsCompanion Function({
+      Value<int> id,
+      Value<String?> bookId,
+      Value<String> word,
+      Value<String> replacement,
+      Value<bool> caseSensitive,
+      Value<int> createdAtMs,
+    });
+
+class $$PronunciationsTableFilterComposer
+    extends Composer<_$LibraryDatabase, $PronunciationsTable> {
+  $$PronunciationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get word => $composableBuilder(
+    column: $table.word,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get replacement => $composableBuilder(
+    column: $table.replacement,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get caseSensitive => $composableBuilder(
+    column: $table.caseSensitive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PronunciationsTableOrderingComposer
+    extends Composer<_$LibraryDatabase, $PronunciationsTable> {
+  $$PronunciationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get word => $composableBuilder(
+    column: $table.word,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get replacement => $composableBuilder(
+    column: $table.replacement,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get caseSensitive => $composableBuilder(
+    column: $table.caseSensitive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PronunciationsTableAnnotationComposer
+    extends Composer<_$LibraryDatabase, $PronunciationsTable> {
+  $$PronunciationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<String> get word =>
+      $composableBuilder(column: $table.word, builder: (column) => column);
+
+  GeneratedColumn<String> get replacement => $composableBuilder(
+    column: $table.replacement,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get caseSensitive => $composableBuilder(
+    column: $table.caseSensitive,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => column,
+  );
+}
+
+class $$PronunciationsTableTableManager
+    extends
+        RootTableManager<
+          _$LibraryDatabase,
+          $PronunciationsTable,
+          PronunciationRow,
+          $$PronunciationsTableFilterComposer,
+          $$PronunciationsTableOrderingComposer,
+          $$PronunciationsTableAnnotationComposer,
+          $$PronunciationsTableCreateCompanionBuilder,
+          $$PronunciationsTableUpdateCompanionBuilder,
+          (
+            PronunciationRow,
+            BaseReferences<
+              _$LibraryDatabase,
+              $PronunciationsTable,
+              PronunciationRow
+            >,
+          ),
+          PronunciationRow,
+          PrefetchHooks Function()
+        > {
+  $$PronunciationsTableTableManager(
+    _$LibraryDatabase db,
+    $PronunciationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PronunciationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PronunciationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PronunciationsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> bookId = const Value.absent(),
+                Value<String> word = const Value.absent(),
+                Value<String> replacement = const Value.absent(),
+                Value<bool> caseSensitive = const Value.absent(),
+                Value<int> createdAtMs = const Value.absent(),
+              }) => PronunciationsCompanion(
+                id: id,
+                bookId: bookId,
+                word: word,
+                replacement: replacement,
+                caseSensitive: caseSensitive,
+                createdAtMs: createdAtMs,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> bookId = const Value.absent(),
+                required String word,
+                required String replacement,
+                Value<bool> caseSensitive = const Value.absent(),
+                required int createdAtMs,
+              }) => PronunciationsCompanion.insert(
+                id: id,
+                bookId: bookId,
+                word: word,
+                replacement: replacement,
+                caseSensitive: caseSensitive,
+                createdAtMs: createdAtMs,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PronunciationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LibraryDatabase,
+      $PronunciationsTable,
+      PronunciationRow,
+      $$PronunciationsTableFilterComposer,
+      $$PronunciationsTableOrderingComposer,
+      $$PronunciationsTableAnnotationComposer,
+      $$PronunciationsTableCreateCompanionBuilder,
+      $$PronunciationsTableUpdateCompanionBuilder,
+      (
+        PronunciationRow,
+        BaseReferences<
+          _$LibraryDatabase,
+          $PronunciationsTable,
+          PronunciationRow
+        >,
+      ),
+      PronunciationRow,
+      PrefetchHooks Function()
+    >;
 
 class $LibraryDatabaseManager {
   final _$LibraryDatabase _db;
@@ -1473,4 +2825,8 @@ class $LibraryDatabaseManager {
       $$BooksTableTableManager(_db, _db.books);
   $$SentenceTimingsTableTableManager get sentenceTimings =>
       $$SentenceTimingsTableTableManager(_db, _db.sentenceTimings);
+  $$BookmarksTableTableManager get bookmarks =>
+      $$BookmarksTableTableManager(_db, _db.bookmarks);
+  $$PronunciationsTableTableManager get pronunciations =>
+      $$PronunciationsTableTableManager(_db, _db.pronunciations);
 }
