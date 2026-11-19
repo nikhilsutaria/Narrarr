@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -45,6 +46,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (BuildFlavor.isQa) await _seedSampleIfEmpty(repo);
     _repo = repo;
     await _refresh();
+    unawaited(_sweepOrphans());
+  }
+
+  /// A book removed just before the app died never got its derived data
+  /// cleaned up (that runs when the Undo snackbar closes) — sweep once at
+  /// start, when no Undo can be pending.
+  Future<void> _sweepOrphans() async {
+    final keep = {for (final b in _books) b.id};
+    await deleteOrphanDisplayCopies(keep);
+    try {
+      final db = appDatabase();
+      await BookmarkRepository(db).deleteOrphans(keep);
+      await PronunciationRepository(db).deleteOrphans(keep);
+    } catch (e) {
+      debugPrint('[library] orphan sweep failed: $e');
+    }
   }
 
   Future<void> _refresh() async {

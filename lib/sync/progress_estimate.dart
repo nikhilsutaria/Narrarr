@@ -23,7 +23,16 @@ class BookLength {
       }
     }
     totalChars = total;
+    // Characters in every chapter after c — so estimate() is O(chapter), not
+    // O(book), on each rebuild (it runs at least once a second with a sleep
+    // timer up).
+    for (var c = 0; c < _sentenceChars.length; c++) {
+      final end = c + 1 < _chapterStart.length ? _chapterStart[c + 1] : total;
+      _charsAfter.add(total - end);
+    }
   }
+
+  final List<int> _charsAfter = [];
 
   /// Fallback narration rate at 1x before anything has been measured:
   /// ~60 ms/char matches Piper Amy on device (≈16 chars/s) and is close to
@@ -89,12 +98,7 @@ class BookLength {
           ? measured[k].durationMs
           : chars[k] * rate;
     }
-    var laterChars = 0;
-    for (var c = ci + 1; c < _sentenceChars.length; c++) {
-      for (final n in _sentenceChars[c]) {
-        laterChars += n;
-      }
-    }
+    final laterChars = _charsAfter[ci];
     final s = speed <= 0 ? 1.0 : speed;
     return (
       chapterRemaining: Duration(milliseconds: (chapterMs / s).round()),

@@ -11,18 +11,24 @@ import 'narration_controller.dart';
 /// keeps the session, so the position and lock-screen controls survive.
 ///
 /// Owned by the process-wide audio handler so it keeps running with the
-/// screen locked.
+/// screen locked. Only an explicit session stop cancels it (the handler calls
+/// [cancel]); internal stop-and-restart paths (jumping to a bookmark or
+/// chapter, a pronunciation preview) leave it running.
 class SleepTimer extends ChangeNotifier {
   SleepTimer(
     this.controller, {
     this.fadeDuration = const Duration(seconds: 10),
     this.tick = const Duration(seconds: 1),
-  }) {
-    controller.addListener(_onControllerChanged);
+    Future<void> Function(double volume)? setVolume,
+  }) : _setVolume = setVolume ?? controller.engine.setVolume {
     controller.onPausedAtChapterEnd = _onPausedAtChapterEnd;
   }
 
   final NarrationController controller;
+
+  /// Applies the fade level. The handler combines it with audio-focus ducking
+  /// so neither undoes the other.
+  final Future<void> Function(double volume) _setVolume;
   final Duration fadeDuration;
   final Duration tick;
 
@@ -94,7 +100,7 @@ class SleepTimer extends ChangeNotifier {
   void _restoreVolume() {
     if (_fading) {
       _fading = false;
-      unawaited(controller.engine.setVolume(1.0));
+      unawaited(_setVolume(1.0));
     }
   }
 
@@ -113,7 +119,7 @@ class SleepTimer extends ChangeNotifier {
     if (left <= fadeDuration) {
       _fading = true;
       final v = math.max(0.05, left.inMilliseconds / fadeDuration.inMilliseconds);
-      unawaited(controller.engine.setVolume(v));
+      unawaited(_setVolume(v));
     }
     notifyListeners();
   }
@@ -133,15 +139,9 @@ class SleepTimer extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _onControllerChanged() {
-    // Stopping narration (not pausing) ends the timer.
-    if (!controller.isPlaying && isActive) cancel();
-  }
-
   @override
   void dispose() {
     _ticker?.cancel();
-    controller.removeListener(_onControllerChanged);
     if (controller.onPausedAtChapterEnd == _onPausedAtChapterEnd) {
       controller.onPausedAtChapterEnd = null;
     }

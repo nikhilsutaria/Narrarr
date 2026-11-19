@@ -49,4 +49,38 @@ void main() {
     await save('word', '  ');
     expect(await repo.all(), isEmpty);
   });
+
+  test('non-ASCII words update in place (SQLite lower() is ASCII-only)', () async {
+    await save('Éowyn', 'AY-oh-win');
+    await save('éowyn', 'EH-oh-win');
+    final all = await repo.all();
+    expect(all, hasLength(1));
+    expect(all.single.replacement, 'EH-oh-win');
+  });
+
+  test('editing an entry into an existing word merges them', () async {
+    await save('Circe', 'SUR-see');
+    await save('Calypso', 'ka-LIP-so');
+    final calypso = (await repo.all()).firstWhere((e) => e.word == 'Calypso');
+    await repo.save(
+        id: calypso.id,
+        word: 'circe',
+        replacement: 'KEER-keh',
+        caseSensitive: false,
+        nowMs: 2);
+    final all = await repo.all();
+    expect(all, hasLength(1));
+    expect(all.single.replacement, 'KEER-keh');
+    // And a later save without an id still works (no StateError).
+    await save('Circe', 'final');
+    expect((await repo.all()).single.replacement, 'final');
+  });
+
+  test('deleteOrphans removes book-only fixes of removed books, keeps global', () async {
+    await save('Global', 'g');
+    await save('Kept', 'k', book: 'kept');
+    await save('Gone', 'x', book: 'gone');
+    await repo.deleteOrphans({'kept'});
+    expect((await repo.all()).map((e) => e.word).toSet(), {'Global', 'Kept'});
+  });
 }

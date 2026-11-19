@@ -60,6 +60,11 @@ class BookmarkRepository {
   Future<void> delete(int id) =>
       (db.delete(db.bookmarks)..where((t) => t.id.equals(id))).go();
 
+  /// Remove bookmarks of books no longer in the library.
+  Future<void> deleteOrphans(Set<String> keepBookIds) =>
+      (db.delete(db.bookmarks)..where((t) => t.bookId.isNotIn(keepBookIds)))
+          .go();
+
   Future<void> deleteForBook(String bookId) =>
       (db.delete(db.bookmarks)..where((t) => t.bookId.equals(bookId))).go();
 }

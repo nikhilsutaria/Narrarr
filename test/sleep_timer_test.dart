@@ -80,13 +80,15 @@ void main() {
     });
   });
 
-  test('stopping narration cancels the timer', () {
+  test('an internal stop-and-restart keeps the timer (review fix)', () {
     fakeAsync((async) {
       startPlaying(async);
       timer.start(const Duration(minutes: 5));
-      c.stop();
+      c.stop(); // e.g. jumping to a bookmark restarts playback
       async.flushMicrotasks();
-      expect(timer.isActive, isFalse);
+      expect(timer.isActive, isTrue);
+      expect(timer.remaining, const Duration(minutes: 5),
+          reason: 'does not count while stopped');
     });
   });
 

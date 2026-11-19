@@ -49,4 +49,12 @@ void main() {
     expect(s.length, BookmarkRepository.snippetMax);
     expect(s.endsWith('…'), isTrue);
   });
+
+  test('deleteOrphans keeps only bookmarks of books still in the library', () async {
+    await add('kept', 1);
+    await add('gone', 2);
+    await repo.deleteOrphans({'kept'});
+    expect(await repo.forBook('kept'), hasLength(1));
+    expect(await repo.forBook('gone'), isEmpty);
+  });
 }

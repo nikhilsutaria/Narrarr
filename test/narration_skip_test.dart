@@ -197,4 +197,64 @@ void main() {
     expect(c.isPlaying, isFalse);
     expect(fake.spoken, isEmpty);
   });
+
+  group('review regressions', () {
+    test('an explicit move while paused is not overridden by auto-rewind', () async {
+      var now = DateTime(2026, 11, 20);
+      c.clock = () => now;
+      final s = _chapter('a', 20);
+      c.setSentences(s, startIndex: 8);
+      unawaited(c.play());
+      await pumpEventQueue();
+      await c.pauseNarration();
+      now = now.add(const Duration(hours: 2));
+      await c.skipSentence(4); // user picks sentence 12 while paused
+      await c.resumeNarration();
+      await pumpEventQueue();
+      expect(c.index, 12);
+      expect(fake.spoken.last, s[12]);
+      await c.stop();
+    });
+
+    test('overlapping skips are serialized (one chapter fetch, not two)', () async {
+      c.setSentences(_chapter('b', 10));
+      var fetches = 0;
+      final prev = _chapter('a', 10);
+      c.fetchPreviousChapter = () async {
+        fetches++;
+        return prev;
+      };
+      final a = c.skipTime(const Duration(seconds: -30));
+      final b = c.skipTime(const Duration(seconds: -30));
+      await Future.wait([a, b]);
+      expect(fetches, 1);
+      expect(c.sentenceTextAt(0), prev[0]);
+      expect(c.index, 0); // 5 back into chapter a, then 5 more
+    });
+
+    test('timings starting mid-chapter are not recorded (they would misalign)', () async {
+      c.setSentences(['a', 'b', 'c', 'd'], startIndex: 2);
+      unawaited(c.play());
+      await pumpEventQueue();
+      fake.finishCurrent();
+      await pumpEventQueue();
+      expect(c.currentTimings?.sentences ?? const [], isEmpty);
+      await c.stop();
+    });
+
+    test('a chapter rollover drops the previous chapter timings', () async {
+      c.setSentences(['a', 'b']);
+      c.fetchNextChapter = () async => ['x', 'y'];
+      unawaited(c.play());
+      await pumpEventQueue();
+      fake.finishCurrent();
+      await pumpEventQueue();
+      fake.finishCurrent(); // chapter done -> rolls into x, y
+      await pumpEventQueue();
+      expect(c.sentenceTextAt(0), 'x');
+      expect(c.currentTimings!.sentences, isEmpty,
+          reason: 'live builder for the new chapter, not the old timings');
+      await c.stop();
+    });
+  });
 }

@@ -290,7 +290,8 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// playing from its first sentence (#12). Stops any running session first so
   /// the play loop doesn't read the swapped-in sentences with a stale index.
   Future<void> _jumpToChapter(int spineIndex) async {
-    await _handler!.stop();
+    // controller.stop, not handler.stop: a restart keeps the sleep timer.
+    await _narration!.stop();
     await _loadChapterAt(spineIndex);
     await _startNarration();
   }
@@ -445,7 +446,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     }
     final c = _narration!;
     final wasPlaying = c.isPlaying && !c.isPaused;
-    await _handler!.stop();
+    await c.stop(); // a restart, not the end of the session (keeps sleep timer)
     await _loadChapterAt(spineIndex, startSentence: b.sentenceIndex);
     if (wasPlaying) {
       await _startNarration();

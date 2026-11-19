@@ -209,7 +209,17 @@ class NarrationController extends ChangeNotifier {
         }
         if (token != _token) return;
         final ms = (engine.lastUtteranceMs * speechSpeed).round();
-        _timingBuilder?.add(ms);
+        // The builder's entries are positional (entry k = sentence k), so only
+        // a contiguous run from sentence 0 is recorded; a mid-chapter start,
+        // seek or skip invalidates it rather than storing misaligned timings.
+        final b = _timingBuilder;
+        if (b != null) {
+          if (b.length == i) {
+            b.add(ms);
+          } else {
+            _timingBuilder = null;
+          }
+        }
         if (ms > 0) {
           _rateMs += ms;
           _rateChars += _sentences[i].length;
@@ -230,6 +240,8 @@ class NarrationController extends ChangeNotifier {
       _peekedAhead = false;
       _timingBuilder =
           ChapterTimings.builder(chapterHref: chapterHref, voiceId: voiceId);
+      // The finalized timings belong to the chapter just finished.
+      _currentTimings = null;
       // Sleep timer "end of chapter" (#44): stop at the boundary, positioned
       // at the next chapter's start, paused so the session (and lock-screen
       // controls) survive and resume reads on.
@@ -403,7 +415,19 @@ class NarrationController extends ChangeNotifier {
   /// Shared reposition: halt any running loop, compute the target (which may
   /// swap chapters), then restore the session state — playing resumes from the
   /// target; paused stays paused there; idle just moves the highlight.
-  Future<void> _moveTo(Future<int> Function() computeTarget) async {
+  ///
+  /// Moves are serialized: overlapping skips (a double-tapped rewind) would
+  /// otherwise each read the same index and each fetch a neighbouring
+  /// chapter, leaving the reader's chapter out of step with the sentences.
+  Future<void> _moveTo(Future<int> Function() computeTarget) {
+    final run = _moveChain.then((_) => _doMove(computeTarget));
+    _moveChain = run.catchError((Object _) {});
+    return run;
+  }
+
+  Future<void> _moveChain = Future<void>.value();
+
+  Future<void> _doMove(Future<int> Function() computeTarget) async {
     if (_sentences.isEmpty) return;
     final wasPlaying = _playing && !_paused;
     final wasPaused = _playing && _paused;
@@ -420,6 +444,9 @@ class NarrationController extends ChangeNotifier {
     _playing = wasPaused;
     _paused = wasPaused;
     _deferredStart = wasPaused;
+    // An explicit move while paused is where the user wants to resume —
+    // auto-rewind must not second-guess it.
+    if (wasPaused) _pausedAt = null;
     notifyListeners();
     await onHighlight?.call(_index);
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:narrarr/narration/narration_audio_handler.dart';
 import 'package:narrarr/narration/voice_settings.dart';
@@ -46,11 +47,43 @@ void main() {
     expect(controller.index, 5);
 
     final state = handler.playbackState.value;
-    expect(state.controls.first, MediaControl.rewind);
-    expect(state.controls.last, MediaControl.fastForward);
-    expect(state.androidCompactActionIndices, [0, 2, 4]);
+    expect(state.controls, [
+      MediaControl.rewind,
+      MediaControl.play,
+      MediaControl.fastForward,
+      MediaControl.stop,
+    ]);
+    expect(state.androidCompactActionIndices, [0, 1, 2]);
     expect(state.systemActions,
         containsAll([MediaAction.rewind, MediaAction.fastForward]));
+  });
+
+  test('handler.stop ends the session and turns off the sleep timer (#44)',
+      () async {
+    final controller = NarrationController(engine: FakeTtsEngine());
+    final handler = NarrationAudioHandler(controller);
+    handler.loadChapter(bookId: 'b', title: 'B', sentences: ['a', 'b']);
+    unawaited(handler.play());
+    await pumpEventQueue();
+    handler.sleepTimer.start(const Duration(minutes: 10));
+    await handler.stop();
+    expect(handler.sleepTimer.isActive, isFalse);
+    handler.sleepTimer.dispose();
+  });
+
+  test('sleep-timer fade and audio ducking combine instead of overriding',
+      () async {
+    final fake = FakeTtsEngine();
+    final handler = NarrationAudioHandler(NarrationController(engine: fake));
+    await handler.onInterruption(
+        AudioInterruptionEvent(true, AudioInterruptionType.duck));
+    expect(fake.volume, closeTo(0.3, 1e-9));
+    handler.sleepTimer.start(const Duration(minutes: 1));
+    handler.sleepTimer.cancel(); // no fade yet: volume untouched
+    await handler.onInterruption(
+        AudioInterruptionEvent(false, AudioInterruptionType.duck));
+    expect(fake.volume, 1.0);
+    handler.sleepTimer.dispose();
   });
 
   test('loadChapter passes paragraph starts to the controller (#45)', () {

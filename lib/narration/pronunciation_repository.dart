@@ -41,14 +41,20 @@ class PronunciationRepository {
     final w = word.trim();
     final r = replacement.trim();
     if (w.isEmpty || r.isEmpty) return;
-    var targetId = id;
-    if (targetId == null) {
-      final same = await (db.select(db.pronunciations)
-            ..where((t) =>
-                t.word.lower().equals(w.toLowerCase()) &
-                (bookId == null ? t.bookId.isNull() : t.bookId.equals(bookId))))
-          .getSingleOrNull();
-      targetId = same?.id;
+    // Match in Dart: SQLite's lower() only folds ASCII, so 'Éowyn' would never
+    // find its own row and every re-fix would add a duplicate.
+    final sameScope = await (db.select(db.pronunciations)
+          ..where((t) =>
+              bookId == null ? t.bookId.isNull() : t.bookId.equals(bookId)))
+        .get();
+    final key = w.toLowerCase();
+    final sameWord =
+        sameScope.where((r) => r.word.toLowerCase() == key).toList();
+    final targetId = id ?? (sameWord.isEmpty ? null : sameWord.first.id);
+    // Editing an entry into a word that already exists (or older duplicates):
+    // keep exactly one row per word per scope.
+    for (final r in sameWord) {
+      if (r.id != targetId) await delete(r.id);
     }
     final row = PronunciationsCompanion(
       bookId: Value(bookId),
@@ -60,13 +66,20 @@ class PronunciationRepository {
     if (targetId == null) {
       await db.into(db.pronunciations).insert(row);
     } else {
-      await (db.update(db.pronunciations)..where((t) => t.id.equals(targetId!)))
+      await (db.update(db.pronunciations)..where((t) => t.id.equals(targetId)))
           .write(row);
     }
   }
 
   Future<void> delete(int id) =>
       (db.delete(db.pronunciations)..where((t) => t.id.equals(id))).go();
+
+  /// Remove book-only fixes of books no longer in the library (global
+  /// entries are kept).
+  Future<void> deleteOrphans(Set<String> keepBookIds) =>
+      (db.delete(db.pronunciations)
+            ..where((t) => t.bookId.isNotNull() & t.bookId.isNotIn(keepBookIds)))
+          .go();
 
   Future<void> deleteForBook(String bookId) =>
       (db.delete(db.pronunciations)..where((t) => t.bookId.equals(bookId)))

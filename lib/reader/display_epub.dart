@@ -234,6 +234,24 @@ Future<String> ensureDisplayCopy({
 Uint8List _transform((Uint8List, Map<String, Uint8List>) args) =>
     withReaderFonts(args.$1, args.$2);
 
+/// Delete display copies of books not in [keepBookIds] — cleanup for books
+/// removed while the app died inside the Undo window.
+Future<void> deleteOrphanDisplayCopies(Set<String> keepBookIds) async {
+  try {
+    final dir = Directory(p.join(
+        (await getApplicationSupportDirectory()).path, 'display'));
+    if (!dir.existsSync()) return;
+    for (final f in dir.listSync().whereType<File>()) {
+      final name = p.basename(f.path);
+      final dot = name.lastIndexOf('.v');
+      final id = dot < 0 ? name : name.substring(0, dot);
+      if (!keepBookIds.contains(id)) await f.delete();
+    }
+  } catch (e) {
+    debugPrint('[reader] display copy sweep failed: $e');
+  }
+}
+
 /// Delete every display copy for [bookId] (call when a book is removed).
 Future<void> deleteDisplayCopies(String bookId) async {
   try {

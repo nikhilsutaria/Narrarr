@@ -30,7 +30,21 @@ class NarrationAudioHandler extends BaseAudioHandler {
 
   /// Sleep timer (#44). Lives with the handler (process-wide) so it keeps
   /// counting with the screen locked or the reader backgrounded.
-  late final SleepTimer sleepTimer = SleepTimer(controller);
+  late final SleepTimer sleepTimer =
+      SleepTimer(controller, setVolume: _setFadeVolume);
+
+  // Volume = audio-focus ducking × sleep-timer fade, so a duck ending during
+  // the fade (or the fade ending during a duck) doesn't jump to full volume.
+  double _duckFactor = 1.0;
+  double _fadeFactor = 1.0;
+
+  Future<void> _applyVolume() =>
+      controller.engine.setVolume(_duckFactor * _fadeFactor);
+
+  Future<void> _setFadeVolume(double v) {
+    _fadeFactor = v;
+    return _applyVolume();
+  }
 
   /// Point the session at a book/chapter: its sentences, notification metadata,
   /// and the reader's highlight callback. Replaces any previous session.
@@ -70,8 +84,12 @@ class NarrationAudioHandler extends BaseAudioHandler {
   @override
   Future<void> pause() => controller.pauseNarration();
 
+  /// Ends the session — the explicit "stop" (notification, ⋯ menu, leaving
+  /// the reader). Also turns off the sleep timer (#44); internal restarts use
+  /// `controller.stop()` and keep it.
   @override
   Future<void> stop() async {
+    sleepTimer.cancel();
     await controller.stop();
     await super.stop();
   }
@@ -118,7 +136,7 @@ class NarrationAudioHandler extends BaseAudioHandler {
   /// (#47). Stops any narration first (the session's position is kept), so
   /// the preview never interleaves with a paused utterance.
   Future<void> previewSpeech(String text, {VoiceSettingsStore? store}) async {
-    if (controller.isPlaying) await stop();
+    if (controller.isPlaying) await controller.stop(); // keeps the sleep timer
     await applyVoiceSettings(store: store);
     await controller.engine.init();
     await controller.engine.speak(const TextNormalizer().normalize(text));
@@ -148,7 +166,8 @@ class NarrationAudioHandler extends BaseAudioHandler {
     if (event.begin) {
       switch (event.type) {
         case AudioInterruptionType.duck:
-          await controller.engine.setVolume(_duckVolume);
+          _duckFactor = _duckVolume;
+          await _applyVolume();
         case AudioInterruptionType.pause:
         case AudioInterruptionType.unknown:
           _resumeAfterInterruption = controller.isPlaying && !controller.isPaused;
@@ -157,7 +176,8 @@ class NarrationAudioHandler extends BaseAudioHandler {
     } else {
       switch (event.type) {
         case AudioInterruptionType.duck:
-          await controller.engine.setVolume(1.0);
+          _duckFactor = 1.0;
+          await _applyVolume();
         case AudioInterruptionType.pause:
         case AudioInterruptionType.unknown:
           if (_resumeAfterInterruption) {
@@ -178,14 +198,13 @@ class NarrationAudioHandler extends BaseAudioHandler {
     final playing = controller.isPlaying && !controller.isPaused;
     playbackState.add(playbackState.value.copyWith(
       // Time skip (#45) is the most useful lock-screen control, so the compact
-      // view shows rewind / play-pause / fast-forward; sentence skip stays in
-      // the expanded view and on headset next/previous.
+      // view shows rewind / play-pause / fast-forward, plus Stop to end the
+      // session. Sentence skip stays on headset next/previous (systemActions).
       controls: [
         MediaControl.rewind,
-        MediaControl.skipToPrevious,
         if (playing) MediaControl.pause else MediaControl.play,
-        MediaControl.skipToNext,
         MediaControl.fastForward,
+        MediaControl.stop,
       ],
       systemActions: const {
         MediaAction.skipToNext,
@@ -194,7 +213,7 @@ class NarrationAudioHandler extends BaseAudioHandler {
         MediaAction.fastForward,
         MediaAction.stop,
       },
-      androidCompactActionIndices: const [0, 2, 4],
+      androidCompactActionIndices: const [0, 1, 2],
       // Surface synth stalls as buffering (#40) so the lock screen shows a
       // loading state instead of a frozen "playing".
       processingState: controller.isBuffering
