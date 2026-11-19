@@ -12,6 +12,16 @@ void main() {
     expect(back.paragraphSpacing, 1.4);
   });
 
+  test('text size is sent to the reader as a ratio, not a percent', () {
+    // flutter_readium's Dart API types fontSize as int, but the native side
+    // reads it as a ratio (1.0 = 100%), so 110 rendered as 11000% — every
+    // page looked blank on device. The wire value must be 1.1.
+    expect(ReaderSettings(fontSizePercent: 110).toEpubPreferences().toJson()['fontSize'],
+        closeTo(1.1, 1e-9));
+    expect(ReaderSettings(fontSizePercent: 250).toEpubPreferences().toJson()['fontSize'],
+        closeTo(2.5, 1e-9));
+  });
+
   test('spacing maps into EPUBPreferences', () {
     final prefs = ReaderSettings(letterSpacing: 0.06).toEpubPreferences();
     expect(prefs.letterSpacing, 0.06);
@@ -34,7 +44,11 @@ void main() {
   test('choosing a non-publisher font disables publisher styles', () {
     final prefs = ReaderSettings(font: ReaderFont.serif).toEpubPreferences();
     expect(prefs.publisherStyles, isFalse);
-    expect(prefs.fontFamily, 'Georgia, serif');
+    // A single family name: Readium quotes the whole value, so a CSS stack
+    // like 'Georgia, serif' became one unknown family (#18).
+    expect(prefs.fontFamily, 'Narrarr Serif');
+    expect(ReaderSettings(font: ReaderFont.sans).toEpubPreferences().fontFamily,
+        'Narrarr Sans');
   });
 
   test('a spacing override alone disables publisher styles', () {
@@ -48,8 +62,12 @@ void main() {
   test('each font maps to its expected css family', () {
     expect(ReaderFont.publisher.cssFamily, isNull);
     expect(ReaderFont.atkinson.cssFamily, 'Atkinson Hyperlegible');
-    expect(ReaderFont.serif.cssFamily, 'Georgia, serif');
-    expect(ReaderFont.sans.cssFamily, 'system-ui, sans-serif');
+    expect(ReaderFont.serif.cssFamily, 'Narrarr Serif');
+    expect(ReaderFont.sans.cssFamily, 'Narrarr Sans');
+    // Never a comma-separated stack — Readium would quote it as one name.
+    for (final f in ReaderFont.values) {
+      expect(f.cssFamily ?? '', isNot(contains(',')), reason: f.name);
+    }
   });
 
   test('theme background/text/brightness are consistent', () {

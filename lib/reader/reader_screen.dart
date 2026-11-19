@@ -22,6 +22,7 @@ import '../ui/theme.dart';
 import 'book_text.dart';
 import 'chapter_picker.dart';
 import 'chapter_titles.dart';
+import 'display_epub.dart';
 import 'reader_settings.dart';
 import 'reader_settings_sheet.dart';
 
@@ -177,7 +178,11 @@ class _ReaderScreenState extends State<ReaderScreen>
       final saved = widget.book.lastLocatorJson;
       if (saved != null) _initialLocator = Locator.fromJsonString(saved);
 
-      final pub = await _readium.openPublication('file://$path');
+      // Open a display copy that carries the Atkinson web font (#18); the
+      // narration text below still comes from the user's original file.
+      final displayPath =
+          await ensureDisplayCopy(bookId: widget.book.id, sourcePath: path);
+      final pub = await _readium.openPublication('file://$displayPath');
       _pub = pub;
 
       final bytes = await File(path).readAsBytes();

@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../build_flavor.dart';
+import '../reader/display_epub.dart';
 import '../reader/reader_screen.dart';
 import '../settings/settings_screen.dart';
 import 'book.dart';
@@ -99,6 +100,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Future<void> _remove(Book book) async {
     await _repo!.remove(book.id);
+    await deleteDisplayCopies(book.id); // rebuilt on next open if undone
     await _refresh();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
