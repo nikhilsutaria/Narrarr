@@ -52,6 +52,11 @@ _The current sentence highlights as the voice reads it (middle) — pocket your 
 - 🔒 **Private by design** — your books and your reading never leave your phone.
 - 🎧 **Listen anywhere** — background playback with lock-screen / notification media controls; put the phone away and keep listening.
 - 👆 **Tap to jump** — tap any sentence to start narration from exactly there.
+- ⏱️ **Know how long is left** — time left in the chapter and the book, plus a progress bar in the player and on every book in your library.
+- ⏪ **Skip and never lose your place** — skip back or forward 10–60 seconds or a paragraph (also from the lock screen and headphones), and after a long pause Narrarr rewinds a little so you can pick the thread back up.
+- 😴 **Sleep timer** — stop after 5–60 minutes of listening or at the end of the chapter, with a gentle fade-out; your place is kept.
+- 🔖 **Bookmarks** — save the sentence being read (or the page you're on) and jump back to it any time.
+- 🗣️ **Fix pronunciations** — teach the voice how to say a name or word (for one book or all of them), with an instant offline preview.
 - 🎙️ **Optional higher-quality voices** — download extra voices on demand; they too run fully offline once installed.
 - 📚 **Your library, your books** — import any DRM-free EPUB you own. Narrarr is a reader, not a bookstore.
 - ♿ **Accessibility-first** — designed for dyslexia, low-vision, and print-disability readers, with the bundled [Atkinson Hyperlegible](https://brailleinstitute.org/freefont) font and adjustable size, spacing, and theme.
@@ -200,6 +205,8 @@ Out of the box, Narrarr reads with your **device's built-in voice** — no downl
 - ✅ Small install (~65 MB): neural voices download on demand (v1.0.0)
 - ✅ Narrates out of the box with the device's built-in voice (v1.1.0)
 - ✅ Gapless narration, 0.8×–3× speed control, natural reading of numbers & abbreviations (v1.2.0)
+- ✅ Listening essentials: time left, skip & auto-rewind, sleep timer, bookmarks, pronunciation fixes (v1.3.0)
+- 🔜 Reading & accessibility: highlight styles, reading ruler, notes, search, a better library (v1.4.0)
 - 🔜 iOS support
 - 🔜 App-store / F-Droid distribution
 
