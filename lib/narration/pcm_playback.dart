@@ -48,9 +48,22 @@ abstract class PcmUtterance {
 class SoLoudPcmPlayback implements PcmPlayback {
   SoLoud get _soloud => SoLoud.instance;
 
+  /// Whether *this Dart isolate* has run `SoLoud.init()`. Static fields are
+  /// per-isolate, so a fresh Flutter engine in a surviving Android process
+  /// (back out of the app, reopen it) starts at false.
+  static bool _initedInThisIsolate = false;
+
   @override
   Future<void> init() async {
-    if (!_soloud.isInitialized) await _soloud.init();
+    // Not `if (!isInitialized)`: that flag reflects the *native* engine, which
+    // outlives the Dart isolate. Skipping init() in a new isolate left
+    // SoLoud's native callbacks wired to the dead one, so
+    // `allInstancesFinished` never fired and every utterance hung on its first
+    // sentence. SoLoud.init() itself handles an already-running native engine
+    // (deinit + re-init + fresh callbacks).
+    if (_initedInThisIsolate && _soloud.isInitialized) return;
+    await _soloud.init();
+    _initedInThisIsolate = true;
   }
 
   @override
@@ -73,6 +86,7 @@ class SoLoudPcmPlayback implements PcmPlayback {
   @override
   Future<void> dispose() async {
     if (_soloud.isInitialized) _soloud.deinit();
+    _initedInThisIsolate = false;
   }
 }
 
