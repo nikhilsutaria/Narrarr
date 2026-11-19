@@ -55,7 +55,9 @@ class NeuralNarrator implements TtsEngine {
 
   bool _inited = false;
   Future<void>? _initing;
-  bool _stopRequested = false;
+  /// Bumped by [stop]; a speak whose generation is stale must not start or
+  /// continue playback (#65).
+  int _generation = 0;
   // Desired pause state, tracked independently of the platform player. On the
   // very first cold-launch utterance a pause() can race ahead of playback
   // start and be dropped — see #11. The utterance start (and every buffer
@@ -196,7 +198,11 @@ class NeuralNarrator implements TtsEngine {
     if (!_inited) {
       throw StateError('NeuralNarrator.speak() called before init()');
     }
-    _stopRequested = false;
+    // Each speak belongs to the generation current when it starts; stop()
+    // moves to a new one. A plain flag reset here let a sentence stopped
+    // mid-synthesis start playing once the next speak cleared it — two
+    // sentences at once after quick skips (#65).
+    final gen = _generation;
     final s = text.trim();
     if (s.isEmpty) return;
 
@@ -205,21 +211,23 @@ class NeuralNarrator implements TtsEngine {
     try {
       final cached = _cache.remove(s);
       if (cached != null) {
-        await _speakPrepared(await cached);
+        await _speakPrepared(await cached, gen);
       } else {
-        await _speakStreaming(s);
+        await _speakStreaming(s, gen);
       }
     } finally {
-      _bufferingDone();
-      _current = null;
+      if (gen == _generation) {
+        _bufferingDone();
+        _current = null;
+      }
     }
   }
 
   /// Cached path: every chunk is already synthesized — push them all and play.
-  Future<void> _speakPrepared(_PreparedPcm prep) async {
-    if (_stopRequested || prep.isEmpty) return;
+  Future<void> _speakPrepared(_PreparedPcm prep, int gen) async {
+    if (gen != _generation || prep.isEmpty) return;
     final utter = await _startUtterance(prep.sampleRate);
-    if (_stopRequested) {
+    if (gen != _generation) {
       await utter.stop();
       return;
     }
@@ -236,7 +244,7 @@ class NeuralNarrator implements TtsEngine {
   /// Cold path: stream chunk-by-chunk — playback starts on the first chunk
   /// while the rest are still synthesizing (the isolate serves requests in
   /// order, so pushes arrive in sentence order).
-  Future<void> _speakStreaming(String s) async {
+  Future<void> _speakStreaming(String s, int gen) async {
     final synth = _synth;
     if (synth == null) throw StateError('narrator not initialised');
     final texts = _chunkForSynthesis(s);
@@ -245,7 +253,7 @@ class NeuralNarrator implements TtsEngine {
     var totalMs = 0;
     for (var i = 0; i < parts.length; i++) {
       final (samples, sampleRate) = await parts[i];
-      if (_stopRequested) {
+      if (gen != _generation) {
         await utter?.stop();
         return;
       }
@@ -256,7 +264,7 @@ class NeuralNarrator implements TtsEngine {
       totalMs += (shaped.length * 1000 / sampleRate).round();
       if (utter == null) {
         utter = await _startUtterance(sampleRate);
-        if (_stopRequested) {
+        if (gen != _generation) {
           await utter.stop();
           return;
         }
@@ -453,8 +461,9 @@ class NeuralNarrator implements TtsEngine {
 
   @override
   Future<void> stop() async {
-    _stopRequested = true;
+    _generation++;
     _paused = false;
+    _bufferingDone(); // the stopped speak no longer clears it (#65)
     final u = _current;
     _current = null;
     if (u != null) await u.stop(); // completes its `done`, unblocking speak()

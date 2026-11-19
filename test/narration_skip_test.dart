@@ -22,6 +22,50 @@ void main() {
   });
 
   group('skipTime (#45)', () {
+    test('loops superseded mid-highlight never speak (#65)', () async {
+      // Rewind, rewind, forward in quick succession: each restart parks in
+      // its (slow, platform-bound) highlight; only the last may speak.
+      final s = _chapter('a', 30);
+      c.setSentences(s, startIndex: 20);
+      final gates = <Completer<void>>[];
+      c.onHighlight = (i) {
+        final g = Completer<void>();
+        gates.add(g);
+        return g.future;
+      };
+      unawaited(c.play());
+      await pumpEventQueue();
+      gates.removeAt(0).complete();
+      await pumpEventQueue();
+      expect(fake.spoken, [s[20]]);
+
+      unawaited(c.skipTime(const Duration(seconds: -30)));
+      unawaited(c.skipTime(const Duration(seconds: -30)));
+      unawaited(c.skipTime(const Duration(seconds: 30)));
+      await pumpEventQueue();
+      while (gates.isNotEmpty) {
+        gates.removeAt(0).complete();
+        await pumpEventQueue();
+      }
+      expect(c.index, 15);
+      expect(fake.spoken.skip(1), [s[15]]);
+      await c.stop();
+    });
+
+    test('seeking while playing cuts off the current sentence (#65)', () async {
+      final s = _chapter('a', 20);
+      c.setSentences(s);
+      unawaited(c.play());
+      await pumpEventQueue();
+      final before = fake.stopCalls;
+      unawaited(c.seekToSentence(10));
+      await pumpEventQueue();
+      expect(fake.stopCalls, greaterThan(before),
+          reason: 'the old sentence would keep playing under the new one');
+      expect(fake.spoken.last, s[10]);
+      await c.stop();
+    });
+
     test('forward 30 s moves by ~30 s of estimated audio', () async {
       c.setSentences(_chapter('a', 20));
       await c.skipTime(const Duration(seconds: 30));

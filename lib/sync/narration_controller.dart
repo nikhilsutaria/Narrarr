@@ -168,10 +168,17 @@ class NarrationController extends ChangeNotifier {
   Future<void> play({int? from}) async {
     if (_sentences.isEmpty) return;
     final token = ++_token;
+    // Replacing a running loop (tap-to-seek while playing): cut its sentence
+    // off, or it plays on under the new one (#65).
+    final wasRunning = _playing;
     _playing = true;
     _paused = false;
     _deferredStart = false;
     notifyListeners();
+    if (wasRunning) {
+      await engine.stop();
+      if (token != _token) return;
+    }
 
     var i = (from ?? _index).clamp(0, _sentences.length - 1);
     while (true) {
@@ -180,6 +187,10 @@ class NarrationController extends ChangeNotifier {
         _index = i;
         notifyListeners();
         await onHighlight?.call(i);
+        // The highlight is a platform round-trip; a skip during it has
+        // already started a newer loop, which must be the only one to speak
+        // (#65).
+        if (token != _token) return;
 
         // Look-ahead: pre-synthesize the next couple of sentences so the
         // hand-off is gapless.
