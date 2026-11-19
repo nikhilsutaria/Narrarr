@@ -43,8 +43,11 @@ _The current sentence highlights as the voice reads it (middle) — pocket your 
 
 ## ✨ Features
 
-- 🗣️ **Read-aloud with synced highlighting** — a natural neural voice narrates while the current sentence lights up and the page follows along automatically.
-- 📴 **100% offline** — narration runs entirely on-device. The default voice is a one-time ~64 MB download on first play; after that, no network is needed for anything.
+- 🗣️ **Read-aloud with synced highlighting** — the book is narrated while the current sentence lights up and the page follows along automatically.
+- ▶️ **Works out of the box** — press Listen and your device's built-in voice starts reading immediately, no download needed. Natural neural voices are an optional one-time upgrade.
+- 📴 **100% offline** — narration runs entirely on-device; downloaded neural voices need no network after the one-time download.
+- 🎚️ **Gapless, adjustable narration** — smooth, gap-free playback at any speed from 0.8× to 3×, with no stall between chapters.
+- 🔢 **Reads text the way people say it** — numbers, currency, dates, abbreviations, dialogue, and roman-numeral chapter headings are spoken naturally.
 - 🆓 **Free & open-source** — no subscriptions, no accounts, no paywalls.
 - 🔒 **Private by design** — your books and your reading never leave your phone.
 - 🎧 **Listen anywhere** — background playback with lock-screen / notification media controls; put the phone away and keep listening.
@@ -67,15 +70,15 @@ EPUB  ─►  Segmenter        HTML → clean, narratable sentences
             │
             ▼
         NarrationController  highlight sentence i → await its audio → advance to i+1
-            │                (look-ahead pre-synthesis for gapless playback)
+            │                (look-ahead pre-synthesis, even across chapters)
             ▼
         NeuralNarrator       sherpa-onnx + Piper, synthesized on a background isolate
-            │                (long-sentence chunking · two-player ping-pong preload)
+            │                (text normalization · sentence chunking · gapless PCM streaming)
             ▼
         Reader + audio_service   synced highlight on screen · lock-screen controls
 ```
 
-To keep narration smooth and gapless, the engine chunks long sentences on clause boundaries, pre-synthesizes the next chunk ahead of time, and hands off between two audio players so there's no silent gap between clips — all while the heavy text-to-speech FFI call runs on a persistent background isolate so the UI never janks.
+To keep narration smooth and gapless, the engine normalizes text so it's spoken naturally, keeps most sentences whole (chunking only very long ones on clause boundaries), pre-synthesizes ahead — including the next chapter's opening — and streams the synthesized audio straight into a continuous PCM buffer, so chunk joins are sample-perfect with no silent gap. The heavy text-to-speech FFI call runs on a persistent background isolate so the UI never janks.
 
 ---
 
@@ -84,21 +87,21 @@ To keep narration smooth and gapless, the engine chunks long sentences on clause
 | Layer | What we use |
 |---|---|
 | **App** | [Flutter](https://flutter.dev) — one codebase for Android + iOS |
-| **On-device TTS** | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) running [Piper](https://github.com/rhasspy/piper) neural voices |
+| **On-device TTS** | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) running [Piper](https://github.com/rhasspy/piper) neural voices · the device's built-in voice via `flutter_tts` |
 | **EPUB render + highlight** | [Readium](https://readium.org) via `flutter_readium` |
-| **Audio playback** | `audioplayers` + `audio_service` (background + lock-screen MediaSession) |
+| **Audio playback** | `flutter_soloud` (gapless PCM streaming) + `audio_service` (background + lock-screen MediaSession) |
 | **Library storage** | [Drift](https://drift.simonbinder.eu/) (SQLite) |
 | **Sync highlighting** | Sentence-level, deterministic, and offline |
 
-Voices are downloaded on demand (one-time, checksum-verified) and then run fully offline — which keeps the app itself a ~60 MB install.
+Voices are downloaded on demand (one-time, checksum-verified) and then run fully offline — which keeps the app itself a ~65 MB install.
 
 ---
 
 ## 🚦 Status
 
-Narrarr **v1.0.0 is released** — a working, device-tested Android app with the full loop running end-to-end:
+Narrarr **v1.2.0 is released** — a working, device-tested Android app with the full loop running end-to-end:
 
-> import a DRM-free EPUB → read it in a real Readium reader → narrate it with an offline neural voice → **the current sentence highlights in sync and the page auto-follows** → background playback with lock-screen controls.
+> import a DRM-free EPUB → read it in a real Readium reader → narrate it with an offline voice → **the current sentence highlights in sync and the page auto-follows** → background playback with lock-screen controls.
 
 Verified on an Android emulator **and a real Pixel 8** (including EPUB import and on-demand voice download). iOS support and app-store / F-Droid distribution are still to come. Work is tracked as **[GitHub issues](../../issues)**.
 
@@ -112,10 +115,10 @@ Two ways in: **install the prebuilt Android APK** (fastest), or **build from sou
 
 No toolchain needed — just download and install.
 
-1. **[⬇️ Download from Releases »](https://github.com/nikhilsutaria/Narrarr/releases)** — open the newest release and grab the `Narrarr-…-arm64-v8a.apk` asset under **Assets** (~60 MB).
+1. **[⬇️ Download from Releases »](https://github.com/nikhilsutaria/Narrarr/releases)** — open the newest release and grab the `Narrarr-…-arm64-v8a.apk` asset under **Assets** (~65 MB).
    - Built for **arm64-v8a** — effectively every Android phone from the last several years. (Not for x86 emulators; for those, build from source.)
 2. Open the downloaded `.apk`. The first time, Android asks permission to **install unknown apps** — allow it for the app you downloaded with (**Settings → Apps → _your browser/files app_ → Install unknown apps → Allow**), then tap **Install**.
-3. Launch Narrarr, import a DRM-free EPUB you own, and press play. The first narration downloads the default voice (one-time, ~64 MB, checksum-verified); everything runs fully offline after that.
+3. Launch Narrarr, import a DRM-free EPUB you own, and press **Listen** — your device's built-in voice starts reading right away. For a more natural voice, download one from **Settings → Voices** (one-time, ~64 MB, checksum-verified); it runs fully offline after that.
 
 > 💡 **Want a zero-setup demo?** Each release also has a `Narrarr-QA-…-arm64-v8a.apk` — a testing build with a sample book (*The Odyssey*) and the default voice pre-bundled, so the read-aloud loop works the moment it installs, no network needed. It installs side-by-side with the regular app as **"Narrarr QA"**.
 
@@ -162,15 +165,18 @@ dart run build_runner build --delete-conflicting-outputs
 
 ## 🎙️ Voices (AI readers)
 
-Narrarr narrates with on-device [Piper](https://github.com/rhasspy/piper) neural voices — natural-sounding and **fully offline once installed**. Voices are one-time, checksum-verified downloads (no account needed); **Amy (low)** is the default and is fetched automatically the first time you press play.
+Out of the box, Narrarr reads with your **device's built-in voice** — no download, works immediately. For a more natural sound, add on-device [Piper](https://github.com/rhasspy/piper) neural voices — **fully offline once installed**, as one-time, checksum-verified downloads (no account needed).
 
 | Voice | Quality | Get it | Notes |
 |---|---|---|---|
-| **Amy (low)** | Good | Download (~64 MB) | English (US) · the default · auto-downloads on first play |
+| **System voice** | Varies by device | Built in | Your phone's text-to-speech voice · the default · no download |
+| **Amy (low)** | Good | Download (~64 MB) | English (US) · natural neural voice |
 | **Amy (medium)** | Higher | Download (~64 MB) | English (US) · a richer take on the default voice |
 | **Ryan (medium)** | Higher | Download (~64 MB) | English (US) · male voice |
 
-> In the **QA build**, Amy (low) is pre-bundled inside the APK instead — narration works with no download at all.
+> In the **QA build**, Amy (low) is pre-bundled inside the APK and is the default voice — neural narration works with no download at all.
+>
+> Set the reading speed (0.8×–3×) from the speed chip in the player bar; it applies to every voice.
 
 ### Download & switch voices
 
@@ -191,7 +197,9 @@ Narrarr narrates with on-device [Piper](https://github.com/rhasspy/piper) neural
 - ✅ Sentence-level synced highlighting + page auto-follow
 - ✅ Background playback + lock-screen controls
 - ✅ Download-on-demand higher-quality voices
-- ✅ Small install (~60 MB): all voices — the default Amy included — download on demand (v1.0.0)
+- ✅ Small install (~65 MB): neural voices download on demand (v1.0.0)
+- ✅ Narrates out of the box with the device's built-in voice (v1.1.0)
+- ✅ Gapless narration, 0.8×–3× speed control, natural reading of numbers & abbreviations (v1.2.0)
 - 🔜 iOS support
 - 🔜 App-store / F-Droid distribution
 
