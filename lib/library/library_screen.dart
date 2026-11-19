@@ -14,6 +14,7 @@ import 'drift/library_database.dart';
 import '../reader/reader_screen.dart';
 import '../settings/settings_screen.dart';
 import 'book.dart';
+import 'book_files.dart';
 import 'drift/drift_library_repository.dart';
 import 'import_service.dart';
 import 'library_repository.dart';
@@ -55,6 +56,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _sweepOrphans() async {
     final keep = {for (final b in _books) b.id};
     await deleteOrphanDisplayCopies(keep);
+    // Narrarr's own EPUB copies of books no longer in the library (#69).
+    await deleteOrphanBookCopies(
+        await appBooksDir(), {for (final b in _books) b.filePath});
+    // And the picker's temporary copies left by earlier imports.
+    await clearPickerTempFiles();
     try {
       final db = appDatabase();
       await BookmarkRepository(db).deleteOrphans(keep);
@@ -98,8 +104,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (_repo == null) return;
     setState(() => _importing = true);
     try {
-      final support = await getApplicationSupportDirectory();
-      final booksDir = Directory(p.join(support.path, 'books'));
+      final booksDir = await appBooksDir();
       final result = await pickAndImportEpub(
         booksDir: booksDir,
         nowMs: DateTime.now().millisecondsSinceEpoch,
@@ -132,11 +137,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
         },
       ),
     ));
-    // Once the Undo window has passed, drop the book's derived data: its
+    // Once the Undo window has passed, drop Narrarr's copy of the EPUB
+    // (#69 — never the user's original) and the book's derived data: its
     // reader display copy (#18), bookmarks (#48) and book-only
     // pronunciations (#47).
     final reason = await snack.closed;
     if (reason == SnackBarClosedReason.action) return;
+    await deleteBookCopy(book.filePath, await appBooksDir());
     await deleteDisplayCopies(book.id);
     try {
       await BookmarkRepository(appDatabase()).deleteForBook(book.id);

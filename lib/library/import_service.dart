@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:epubx/epubx.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import 'book.dart';
@@ -37,7 +38,21 @@ Future<ImportResult> pickAndImportEpub({
   final path = picked.files.single.path;
   if (path == null) return ImportResult.failure('Could not read the selected file.');
 
-  return importEpubFromFile(src: File(path), booksDir: booksDir, nowMs: nowMs);
+  final result =
+      await importEpubFromFile(src: File(path), booksDir: booksDir, nowMs: nowMs);
+  // Narrarr has its own copy now (or rejected the file).
+  await clearPickerTempFiles();
+  return result;
+}
+
+/// The picker hands over a temporary copy of the picked file in the app
+/// cache; drop those (#69). Safe whenever no pick is in progress.
+Future<void> clearPickerTempFiles() async {
+  try {
+    await FilePicker.clearTemporaryFiles();
+  } catch (e) {
+    debugPrint('[import] clearing picker temp files failed: $e');
+  }
 }
 
 /// Validate, DRM-check, and copy [src] into [booksDir], returning a [Book].
