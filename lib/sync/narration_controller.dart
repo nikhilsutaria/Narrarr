@@ -62,6 +62,13 @@ class NarrationController extends ChangeNotifier {
   /// Resume a little earlier after a long pause (#45).
   bool autoRewind = true;
 
+  /// When set, the play loop pauses at the end of the current chapter instead
+  /// of reading on (sleep timer "end of chapter", #44). Cleared once used.
+  bool pauseAtChapterEnd = false;
+
+  /// Called when [pauseAtChapterEnd] has paused playback.
+  void Function()? onPausedAtChapterEnd;
+
   /// Injectable clock for auto-rewind (tests).
   DateTime Function() clock = DateTime.now;
   DateTime? _pausedAt;
@@ -223,6 +230,20 @@ class NarrationController extends ChangeNotifier {
       _peekedAhead = false;
       _timingBuilder =
           ChapterTimings.builder(chapterHref: chapterHref, voiceId: voiceId);
+      // Sleep timer "end of chapter" (#44): stop at the boundary, positioned
+      // at the next chapter's start, paused so the session (and lock-screen
+      // controls) survive and resume reads on.
+      if (pauseAtChapterEnd) {
+        pauseAtChapterEnd = false;
+        _index = 0;
+        _paused = true;
+        _deferredStart = true;
+        _pausedAt = clock();
+        notifyListeners();
+        onPausedAtChapterEnd?.call();
+        await onHighlight?.call(0);
+        return;
+      }
     }
 
     if (token == _token) {

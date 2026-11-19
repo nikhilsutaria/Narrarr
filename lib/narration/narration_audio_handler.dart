@@ -2,6 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 
 import '../sync/narration_controller.dart';
+import '../sync/sleep_timer.dart';
 import 'neural_narrator.dart';
 import 'switchable_tts_engine.dart';
 import 'system_narrator.dart';
@@ -23,6 +24,10 @@ class NarrationAudioHandler extends BaseAudioHandler {
   }
 
   final NarrationController controller;
+
+  /// Sleep timer (#44). Lives with the handler (process-wide) so it keeps
+  /// counting with the screen locked or the reader backgrounded.
+  late final SleepTimer sleepTimer = SleepTimer(controller);
 
   /// Point the session at a book/chapter: its sentences, notification metadata,
   /// and the reader's highlight callback. Replaces any previous session.

@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../build_flavor.dart';
 import '../reader/display_epub.dart';
+import 'bookmark_repository.dart';
+import 'drift/library_database.dart';
 import '../reader/reader_screen.dart';
 import '../settings/settings_screen.dart';
 import 'book.dart';
@@ -100,10 +102,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Future<void> _remove(Book book) async {
     await _repo!.remove(book.id);
-    await deleteDisplayCopies(book.id); // rebuilt on next open if undone
     await _refresh();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    final snack = ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('Removed "${book.title}"'),
       action: SnackBarAction(
         label: 'Undo',
@@ -113,6 +114,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
         },
       ),
     ));
+    // Once the Undo window has passed, drop the book's derived data: its
+    // reader display copy (#18) and bookmarks (#48).
+    final reason = await snack.closed;
+    if (reason == SnackBarClosedReason.action) return;
+    await deleteDisplayCopies(book.id);
+    try {
+      await BookmarkRepository(appDatabase()).deleteForBook(book.id);
+    } catch (e) {
+      debugPrint('[library] bookmark cleanup failed: $e');
+    }
   }
 
   void _showSnack(String msg) =>

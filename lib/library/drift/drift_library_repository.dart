@@ -68,7 +68,7 @@ class DriftLibraryRepository implements LibraryRepository {
 /// Opens the app's library (drift), one-time migrating any legacy JSON manifest
 /// from the previous store.
 Future<LibraryRepository> openAppLibrary() async {
-  final repo = DriftLibraryRepository(LibraryDatabase());
+  final repo = DriftLibraryRepository(appDatabase());
   await _migrateJsonIfPresent(repo);
   return repo;
 }

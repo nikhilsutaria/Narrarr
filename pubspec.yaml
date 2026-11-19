@@ -55,6 +55,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Deterministic timers in unit tests (sleep timer, #44); version pinned by
+  # the Flutter SDK via flutter_test.
+  fake_async: any
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

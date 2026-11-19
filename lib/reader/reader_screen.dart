@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_readium/flutter_readium.dart';
 
 import '../library/book.dart';
+import '../library/bookmark_repository.dart';
 import '../library/drift/library_database.dart';
 import '../a11y/a11y_policy.dart';
 import '../library/library_repository.dart';
@@ -18,9 +19,11 @@ import '../sync/narration_controller.dart';
 import '../sync/progress_estimate.dart';
 import '../sync/sentence_match.dart';
 import '../sync/sentence_timing.dart';
+import '../sync/sleep_timer.dart';
 import '../sync/timing_repository.dart';
 import '../ui/theme.dart';
 import 'book_text.dart';
+import 'bookmarks_sheet.dart';
 import 'chapter_picker.dart';
 import 'chapter_titles.dart';
 import 'display_epub.dart';
@@ -42,6 +45,7 @@ class ReaderScreen extends StatefulWidget {
     required this.book,
     this.repository,
     this.timingRepository,
+    this.bookmarkRepository,
   });
 
   final Book book;
@@ -52,6 +56,9 @@ class ReaderScreen extends StatefulWidget {
   /// Caches measured sentence timings (Phase 3). Defaults to one backed by the
   /// app's drift database when not injected.
   final TimingRepository? timingRepository;
+
+  /// Bookmarks store (#48); defaults to the shared app database.
+  final BookmarkRepository? bookmarkRepository;
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -75,6 +82,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   String _chapterHref = '';
 
   TimingRepository? _timings;
+  BookmarkRepository? _bookmarks;
   // The active voice, loaded from VoiceSettings in [_applyVoiceSelection]
   // (flavor default: system TTS in prod, bundled Amy in QA). Keys the timing
   // cache and drives engine/voice selection.
@@ -142,7 +150,9 @@ class _ReaderScreenState extends State<ReaderScreen>
     _readium.setDefaultPreferences(_settings.toEpubPreferences());
     _handler = await narrationHandler();
     _handler!.controller.addListener(_onNarrationChanged);
-    _timings = widget.timingRepository ?? TimingRepository(LibraryDatabase());
+    _handler!.sleepTimer.addListener(_onNarrationChanged);
+    _timings = widget.timingRepository ?? TimingRepository(appDatabase());
+    _bookmarks = widget.bookmarkRepository ?? BookmarkRepository(appDatabase());
     // Point the engine at the user's persisted selection before opening.
     await _applyVoiceSelection();
     await _open();
@@ -294,17 +304,105 @@ class _ReaderScreenState extends State<ReaderScreen>
     await _startNarration();
   }
 
-  /// Open the Table of Contents and, if a chapter is chosen, jump to it (#12).
-  Future<void> _openContents() async {
-    if (_spine.isEmpty) return;
+  /// Display titles for every spine chapter, from the book's table of contents.
+  List<String> _chapterTitleList() {
     final toc = <TocEntry>[
       for (final l in (_pub?.tocFlattened ?? const <Link>[]))
         if (l.title != null) (href: l.href, title: l.title!),
     ];
-    final titles = chapterTitles(
+    return chapterTitles(
       hrefHints: [for (final c in _spine) c.hrefHint],
       toc: toc,
     );
+  }
+
+  // ---- bookmarks (#48) ----
+
+  /// Where the reader is: the narrated sentence while a session is live,
+  /// otherwise the page being viewed (resolved like resume), falling back to
+  /// the narration start position.
+  BookPosition _currentPosition() {
+    final c = _narration;
+    if (c != null && c.isPlaying) {
+      return (spineIndex: _spineIndex, sentenceIndex: c.index);
+    }
+    final loc = _pendingLocator;
+    if (loc != null) {
+      final pos = resolveBookPosition(
+        spine: [
+          for (final ch in _spine)
+            (hrefHint: ch.hrefHint, sentences: ch.sentences)
+        ],
+        locatorHref: loc.href,
+        highlightText: loc.text?.highlight,
+        progression: loc.locations?.progression,
+      );
+      if (pos != null) return pos;
+    }
+    return (spineIndex: _spineIndex, sentenceIndex: c?.index ?? 0);
+  }
+
+  Future<void> _addBookmark() async {
+    final repo = _bookmarks;
+    if (repo == null || _spine.isEmpty) return;
+    final pos = _currentPosition();
+    final chapter = _spine[pos.spineIndex.clamp(0, _spine.length - 1)];
+    if (chapter.sentences.isEmpty) return;
+    final si = pos.sentenceIndex.clamp(0, chapter.sentences.length - 1);
+    await repo.add(
+      bookId: widget.book.id,
+      chapterHref: chapter.hrefHint,
+      sentenceIndex: si,
+      snippet: chapter.sentences[si],
+      createdAtMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Bookmark added')));
+  }
+
+  /// Jump to a bookmark: land on its sentence and highlight it; keep
+  /// narrating from there if narration was playing.
+  Future<void> _openBookmark(Bookmark b) async {
+    final spineIndex = _spine.indexWhere((c) => c.hrefHint == b.chapterHref);
+    if (spineIndex < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('That bookmark’s chapter couldn’t be found.')));
+      return;
+    }
+    final c = _narration!;
+    final wasPlaying = c.isPlaying && !c.isPaused;
+    await _handler!.stop();
+    await _loadChapterAt(spineIndex, startSentence: b.sentenceIndex);
+    if (wasPlaying) {
+      await _startNarration();
+    } else {
+      await _highlightSentence(_narration!.index);
+    }
+  }
+
+  Future<void> _openBookmarks() async {
+    final repo = _bookmarks;
+    if (repo == null || _spine.isEmpty) return;
+    final titles = _chapterTitleList();
+    await showBookmarksSheet(
+      context,
+      repository: repo,
+      bookId: widget.book.id,
+      chapterTitle: (href) {
+        final i = _spine.indexWhere((c) => c.hrefHint == href);
+        return i < 0 ? '' : titles[i];
+      },
+      onAdd: _addBookmark,
+      onOpen: _openBookmark,
+    );
+  }
+
+  /// Open the Table of Contents and, if a chapter is chosen, jump to it (#12).
+  Future<void> _openContents() async {
+    if (_spine.isEmpty) return;
+    final titles = _chapterTitleList();
     final chosen = await showChapterPicker(
       context,
       titles: titles,
@@ -552,6 +650,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     // The handler is process-wide; don't dispose it. Just detach this reader
     // (clears the highlight callback) and stop audio when leaving the reader.
     _handler?.controller.removeListener(_onNarrationChanged);
+    _handler?.sleepTimer.removeListener(_onNarrationChanged);
     _handler?.endSession();
     super.dispose();
   }
@@ -573,6 +672,11 @@ class _ReaderScreenState extends State<ReaderScreen>
             tooltip: 'Contents',
             onPressed: _spine.isEmpty ? null : _openContents,
             icon: const Icon(Icons.list, semanticLabel: 'Contents — jump to a chapter'),
+          ),
+          IconButton(
+            tooltip: 'Bookmarks',
+            onPressed: _spine.isEmpty ? null : _openBookmarks,
+            icon: const Icon(Icons.bookmarks_outlined),
           ),
           IconButton(
             tooltip: 'Reading settings',
@@ -698,10 +802,77 @@ class _ReaderScreenState extends State<ReaderScreen>
         Row(
           children: [
             _buildSpeedChip(context),
+            const SizedBox(width: 8),
+            _buildSleepChip(context),
             const Spacer(),
+            IconButton(
+              tooltip: 'Bookmark this sentence',
+              onPressed: _addBookmark,
+              icon: const Icon(Icons.bookmark_add_outlined),
+            ),
           ],
         ),
       ],
+    );
+  }
+
+  /// Sleep timer chip (#44): shows the countdown (or "End of chapter") while
+  /// active; tapping opens presets, extend and cancel.
+  Widget _buildSleepChip(BuildContext context) {
+    final t = _handler!.sleepTimer;
+    final String label;
+    final String spoken;
+    if (t.endOfChapter) {
+      label = 'End of chapter';
+      spoken = 'Sleep timer, pausing at the end of this chapter';
+    } else if (t.remaining != null) {
+      label = formatCountdown(t.remaining!);
+      spoken = 'Sleep timer, ${formatDurationSpoken(t.remaining!)} left';
+    } else {
+      label = 'Sleep';
+      spoken = 'Sleep timer, off';
+    }
+    return PopupMenuButton<String>(
+      tooltip: 'Sleep timer',
+      onSelected: (v) {
+        switch (v) {
+          case 'extend':
+            t.extend();
+          case 'cancel':
+            t.cancel();
+          case 'chapter':
+            t.startEndOfChapter();
+          default:
+            t.start(Duration(minutes: int.parse(v)));
+        }
+      },
+      itemBuilder: (_) => [
+        if (t.isActive) ...[
+          PopupMenuItem(
+            value: 'extend',
+            child: Text('Add ${t.lastDuration.inMinutes} minutes'),
+          ),
+          const PopupMenuItem(value: 'cancel', child: Text('Turn off')),
+          const PopupMenuDivider(),
+        ],
+        for (final d in SleepTimer.presets)
+          PopupMenuItem(
+            value: '${d.inMinutes}',
+            child: Text('${d.inMinutes} minutes'),
+          ),
+        const PopupMenuItem(value: 'chapter', child: Text('End of chapter')),
+      ],
+      child: Semantics(
+        label: spoken,
+        button: true,
+        excludeSemantics: true,
+        child: Chip(
+          avatar: Icon(
+              t.isActive ? Icons.bedtime : Icons.bedtime_outlined,
+              size: 18),
+          label: Text(label),
+        ),
+      ),
     );
   }
 
