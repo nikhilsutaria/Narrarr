@@ -99,4 +99,38 @@ void main() {
     );
     expect(pos, (spineIndex: 1, sentenceIndex: 0));
   });
+
+  group('page anchors (#63)', () {
+    test('a page locator (no text) resolves via the anchor, not progression',
+        () {
+      final pos = resolveBookPosition(
+        spine: spine,
+        locatorHref: 'book-9.xhtml',
+        progression: 0.0,
+        anchorTextAt: (i) =>
+            i == 1 ? 'The wanderer, harried for years on end. Next' : null,
+      );
+      expect(pos, (spineIndex: 1, sentenceIndex: 2));
+    });
+
+    test('highlight text still wins over the anchor', () {
+      final pos = resolveBookPosition(
+        spine: spine,
+        locatorHref: 'book-9.xhtml',
+        highlightText: 'That man skilled',
+        anchorTextAt: (_) => 'The wanderer, harried for years on end.',
+      );
+      expect(pos, (spineIndex: 1, sentenceIndex: 1));
+    });
+
+    test('an anchor that matches nothing falls back to progression', () {
+      final pos = resolveBookPosition(
+        spine: spine,
+        locatorHref: 'book-9.xhtml',
+        progression: 0.7,
+        anchorTextAt: (_) => 'text from somewhere else entirely',
+      );
+      expect(pos, (spineIndex: 1, sentenceIndex: 2));
+    });
+  });
 }

@@ -12,12 +12,14 @@ List<String> sentencesFromHtml(String html) =>
     const Segmenter().sentencesFromHtml(html);
 
 /// A chapter resolved for reading: a content-file name fragment (to match
-/// against the reader's reading order), its speakable sentences, and the
-/// sentence indices where paragraphs begin (#45).
+/// against the reader's reading order), its speakable sentences, the
+/// sentence indices where paragraphs begin (#45), and its HTML (to resolve
+/// page locators to text, #63).
 typedef ResolvedChapter = ({
   String hrefHint,
   List<String> sentences,
   List<int> paragraphStarts,
+  String html,
 });
 
 /// Load the EPUB and resolve the chapter to read.
@@ -74,6 +76,7 @@ Future<ResolvedChapter> resolveChapter(
       for (final i in seg.paragraphStarts)
         if (i < sentences.length) i
     ],
+    html: html,
   );
 }
 
@@ -88,23 +91,27 @@ Future<List<ResolvedChapter>> resolveSpine(Uint8List epubBytes) async {
 
   final out = <ResolvedChapter>[];
   for (final e in files.entries) {
-    final seg = segmenter.segment(e.value.Content ?? '');
+    final html = e.value.Content ?? '';
+    final seg = segmenter.segment(html);
     if (seg.sentences.join(' ').length <= 600) continue; // skip front/back matter
     out.add((
       hrefHint: e.key,
       sentences: seg.sentences,
       paragraphStarts: seg.paragraphStarts,
+      html: html,
     ));
   }
 
   // Never return empty for a non-empty book: fall back to the first content doc.
   if (out.isEmpty && files.isNotEmpty) {
     final first = files.entries.first;
-    final seg = segmenter.segment(first.value.Content ?? '');
+    final html = first.value.Content ?? '';
+    final seg = segmenter.segment(html);
     out.add((
       hrefHint: first.key,
       sentences: seg.sentences,
       paragraphStarts: seg.paragraphStarts,
+      html: html,
     ));
   }
   return out;

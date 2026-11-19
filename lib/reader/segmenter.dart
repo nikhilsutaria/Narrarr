@@ -102,7 +102,7 @@ class Segmenter {
     for (final child in node.nodes) {
       if (child is dom.Element) {
         final tag = child.localName?.toLowerCase() ?? '';
-        if (_skipTags.contains(tag) || _skipByAttribute(child)) continue;
+        if (skips(child)) continue;
         if (tag == 'br') {
           buf.write('\n'); // verse: a line break ends the utterance (#37)
           continue;
@@ -114,6 +114,13 @@ class Segmenter {
       }
     }
   }
+
+  /// Whether [e]'s subtree is left out of narration (header, nav, footnote,
+  /// page marker...). Shared with page anchoring (#63) so the two agree on
+  /// what text exists.
+  bool skips(dom.Element e) =>
+      _skipTags.contains(e.localName?.toLowerCase() ?? '') ||
+      _skipByAttribute(e);
 
   bool _skipByAttribute(dom.Element e) {
     final epubType = _attr(e, 'type'); // matches both `epub:type` and `type`
