@@ -45,7 +45,7 @@ Work is tracked entirely as **[GitHub issues](../../issues)**.
 
 ## Development setup
 
-Narrarr is a Flutter app (one codebase at the repo root). See the [README → Getting started](README.md#-getting-started) for the full version; in short:
+Narrarr is a Flutter app (one codebase at the repo root). See the [README → Building from source](README.md#building-from-source) for the full version; in short:
 
 ### Prerequisites
 
@@ -77,7 +77,7 @@ dart run build_runner watch
 
 ## Project layout
 
-A quick map (see the [README → How it works](README.md#-how-it-works) for the architecture):
+A quick map (see the [README → How it works](README.md#how-it-works) for the architecture):
 
 - `lib/reader/` — the Readium reader, HTML→sentence segmenter, reading-position handling.
 - `lib/narration/` — the TTS stack: the `TtsEngine` interface, the neural (sherpa-onnx + Piper) engine, the background synth isolate, the `audio_service` handler, and voice management.

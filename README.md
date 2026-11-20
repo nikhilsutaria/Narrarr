@@ -1,272 +1,167 @@
-<div align="center">
-
-# Narrarr 🎙️📖
-
-### Immersion reading for the books you already own
-
-**An on-device, offline AI voice reads your DRM-free EPUBs aloud while the text highlights in sync — free, private, and open-source.**
+# Narrarr
 
 [![Release](https://img.shields.io/github/v/release/nikhilsutaria/Narrarr?label=release&color=success)](https://github.com/nikhilsutaria/Narrarr/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)](#-status)
-[![iOS](https://img.shields.io/badge/iOS-planned-lightgrey?logo=apple&logoColor=white)](#-roadmap)
-[![Built with Flutter](https://img.shields.io/badge/built%20with-Flutter-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
-[![Offline](https://img.shields.io/badge/100%25-offline-success)](#-private-by-design)
-[![Accessibility first](https://img.shields.io/badge/accessibility-first--class-blueviolet)](#-features)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
-[![Sponsor](https://img.shields.io/badge/♥-sponsor-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/nikhilsutaria)
 
-[**Features**](#-features) · [**How it works**](#-how-it-works) · [**Install**](#-getting-started) · [**Voices**](#-voices-ai-readers) · [**Roadmap**](#-roadmap) · [**Docs**](#-documentation) · [**Support ☕**](#-support-narrarr)
+Narrarr reads your EPUBs out loud and highlights each sentence as it's spoken. You can follow along on the page, or put your phone in your pocket and just listen. The voice runs on the phone itself, so there's no account, no subscription, and nothing you read gets uploaded anywhere.
 
-</div>
+It's for DRM-free EPUBs you already have: Project Gutenberg and Standard Ebooks downloads, DRM-free purchases, files you made yourself. It won't open DRM-protected books, and it doesn't sell books.
 
----
+It's Android only for now. iOS is planned.
 
-Narrarr turns the **personal, DRM-free EPUBs you already own** into a Kindle-style *immersion reading* experience: the book is read aloud by an **on-device neural voice** while the **current sentence highlights in sync** and the page auto-follows — so your eyes can track along, or you can pocket your phone and just listen with full lock-screen controls.
+[Download the latest APK](https://github.com/nikhilsutaria/Narrarr/releases/latest) · [Build from source](#building-from-source) · [Report a bug](../../issues)
 
-> **The pitch:** your phone is already powerful enough to narrate a book locally. You shouldn't have to pay a subscription — or upload what you read — to listen to a book you already own.
-
----
-
-## 📸 Screenshots
-
-<div align="center">
-
-| Library | Reading + sync highlight | Lock-screen controls |
+| Library | Reading along | Lock screen |
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/library.png" width="240" alt="Library"/> | <img src="docs/screenshots/reader.png" width="240" alt="Reader narrating The Odyssey with the current sentence highlighted"/> | <img src="docs/screenshots/lockscreen.png" width="240" alt="Lock-screen playback controls while Narrarr reads The Odyssey"/> |
 
-_The current sentence highlights as the voice reads it (middle) — pocket your phone and keep control from the lock screen (right)._
+## What it does
 
-</div>
+- Reads the book aloud and highlights the sentence being read. The page turns on its own to keep up.
+- Keeps playing with the screen off. You get controls on the lock screen, in the notification, and on your headphones.
+- Works offline. By default it uses your phone's built-in voice, so it starts reading straight away. If you want something more natural, download a neural voice once (about 64 MB) and it runs offline from then on.
+- Plays at anywhere from 0.8× to 3× speed, without gaps between sentences or chapters.
+- Says numbers, dates, money, abbreviations and Roman-numeral chapter headings the way a person would.
+- Skips back or forward 10 to 60 seconds, or a paragraph at a time. If you've been paused for a while, it backs up a little when you resume so you can pick up the thread.
+- Shows how much time is left in the chapter and in the book.
+- Has a sleep timer (5 to 60 minutes, or the end of the chapter). It fades out and keeps your place.
+- Has bookmarks.
+- Lets you fix pronunciation. If the voice says a name wrong, select the word and type how it should sound, for one book or for all of them.
+- Long-press a sentence to move narration there. (A proper tap-to-start is coming in [#71](../../issues/71).)
+- Uses the Atkinson Hyperlegible font, and you can change text size, spacing and theme. I want Narrarr to work well for people with dyslexia or low vision, or anyone who finds a page of print hard going, so accessibility gets treated as a feature, not an afterthought.
 
----
+## Installing on Android
 
-## ✨ Features
+There's no Play Store listing yet, so you install the APK directly.
 
-- 🗣️ **Read-aloud with synced highlighting** — the book is narrated while the current sentence lights up and the page follows along automatically.
-- ▶️ **Works out of the box** — press Listen and your device's built-in voice starts reading immediately, no download needed. Natural neural voices are an optional one-time upgrade.
-- 📴 **100% offline** — narration runs entirely on-device; downloaded neural voices need no network after the one-time download.
-- 🎚️ **Gapless, adjustable narration** — smooth, gap-free playback at any speed from 0.8× to 3×, with no stall between chapters.
-- 🔢 **Reads text the way people say it** — numbers, currency, dates, abbreviations, dialogue, and roman-numeral chapter headings are spoken naturally.
-- 🆓 **Free & open-source** — no subscriptions, no accounts, no paywalls.
-- 🔒 **Private by design** — your books and your reading never leave your phone.
-- 🎧 **Listen anywhere** — background playback with lock-screen / notification media controls; put the phone away and keep listening.
-- 👆 **Tap to jump** — tap any sentence to start narration from exactly there.
-- ⏱️ **Know how long is left** — time left in the chapter and the book, plus a progress bar in the player and on every book in your library.
-- ⏪ **Skip and never lose your place** — skip back or forward 10–60 seconds or a paragraph (also from the lock screen and headphones), and after a long pause Narrarr rewinds a little so you can pick the thread back up.
-- 😴 **Sleep timer** — stop after 5–60 minutes of listening or at the end of the chapter, with a gentle fade-out; your place is kept.
-- 🔖 **Bookmarks** — save the sentence being read (or the page you're on) and jump back to it any time.
-- 🗣️ **Fix pronunciations** — teach the voice how to say a name or word (for one book or all of them), with an instant offline preview.
-- 🎙️ **Optional higher-quality voices** — download extra voices on demand; they too run fully offline once installed.
-- 📚 **Your library, your books** — import any DRM-free EPUB you own. Narrarr is a reader, not a bookstore.
-- ♿ **Accessibility-first** — designed for dyslexia, low-vision, and print-disability readers, with the bundled [Atkinson Hyperlegible](https://brailleinstitute.org/freefont) font and adjustable size, spacing, and theme.
+1. Go to [Releases](https://github.com/nikhilsutaria/Narrarr/releases) and download `Narrarr-<version>-arm64-v8a.apk` from the newest release (about 65 MB). It runs on pretty much any Android phone from the last several years. It won't run on x86 emulators; build from source for those.
+2. Open the file. The first time, Android will ask you to allow installs from the app you downloaded it with (Settings → Apps → your browser or files app → Install unknown apps). Allow it, then tap Install.
+3. Open Narrarr, add an EPUB, and press Listen.
 
----
+If you just want to try it without finding a book first, each release also has a `Narrarr-QA-<version>-arm64-v8a.apk`. That's a test build with *The Odyssey* and a neural voice already inside, so it reads the moment it's installed, with no network. It installs next to the normal app as "Narrarr QA".
 
-## 🔧 How it works
+## Voices
 
-The whole-book read-aloud loop spans four cooperating layers, and one invariant makes the magic work without timers or guesswork:
+Narrarr starts with whatever text-to-speech voice your phone already has. These [Piper](https://github.com/rhasspy/piper) neural voices are optional downloads and sound a lot more natural:
 
-> **`speak()` returns only when the audio for that sentence has actually finished playing.** The highlight advances when narration of sentence *i* completes, so it stays locked to the audio — perfectly, on any device.
+| Voice | Size | Notes |
+|---|---|---|
+| System voice | Built in | Your phone's own TTS voice. The default. Quality depends on the phone. |
+| Amy (low) | ~64 MB | US English. |
+| Amy (medium) | ~64 MB | US English, a bit richer than Amy (low). |
+| Ryan (medium) | ~64 MB | US English, male. |
+
+To get one, open Settings (the gear at the top right of the library), then Voices, and tap the voice you want. It downloads from the [sherpa-onnx model releases](https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models), checks the file, and unpacks it. No account is needed. Select it to make it the active voice, and remove it whenever you want the space back.
+
+Reading speed is the chip in the player bar and applies to every voice. The QA build ships with Amy (low) already installed.
+
+Everything is US English for now. If you'd like another language or voice, [open an issue](../../issues).
+
+## How it works
+
+The tricky part is keeping the highlight in step with the voice. Narrarr doesn't estimate timings. It speaks a sentence, waits until that sentence's audio has actually finished playing, and only then moves the highlight to the next one. That keeps the two in sync on any phone, at any speed.
 
 ```
-EPUB  ─►  Segmenter        HTML → clean, narratable sentences
-          (DOM-aware)      (drops nav, footnotes, captions, tables…)
+EPUB  ─►  Segmenter            HTML → clean sentences to read
+                               (skips nav, footnotes, captions, tables…)
             │
             ▼
-        NarrationController  highlight sentence i → await its audio → advance to i+1
-            │                (look-ahead pre-synthesis, even across chapters)
+        NarrationController    highlight sentence i → wait for its audio → move to i+1
+            │                  (synthesizes ahead, including the next chapter)
             ▼
-        NeuralNarrator       sherpa-onnx + Piper, synthesized on a background isolate
-            │                (text normalization · sentence chunking · gapless PCM streaming)
+        NeuralNarrator         sherpa-onnx + Piper on a background isolate
+            │                  (text normalization, long-sentence chunking, PCM streaming)
             ▼
-        Reader + audio_service   synced highlight on screen · lock-screen controls
+        Reader + audio_service highlight on screen, lock-screen controls
 ```
 
-To keep narration smooth and gapless, the engine normalizes text so it's spoken naturally, keeps most sentences whole (chunking only very long ones on clause boundaries), pre-synthesizes ahead — including the next chapter's opening — and streams the synthesized audio straight into a continuous PCM buffer, so chunk joins are sample-perfect with no silent gap. The heavy text-to-speech FFI call runs on a persistent background isolate so the UI never janks.
+To avoid gaps, Narrarr synthesizes a few sentences ahead (and the start of the next chapter before you get there), and streams the audio into one continuous PCM buffer rather than playing separate clips. Very long sentences are split at commas and semicolons, because Piper speeds up on long input. Synthesis runs on a background isolate, so the UI stays responsive while it works.
 
----
+Built with:
 
-## 🛠️ Tech stack
+- [Flutter](https://flutter.dev) for the app
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) running [Piper](https://github.com/rhasspy/piper) voices, plus `flutter_tts` for the system voice
+- [Readium](https://readium.org) (via `flutter_readium`) to render the EPUB and draw the highlight
+- `flutter_soloud` for gapless playback, and `audio_service` for background audio and the lock screen
+- [Drift](https://drift.simonbinder.eu/) (SQLite) for the library, bookmarks and reading positions
 
-| Layer | What we use |
-|---|---|
-| **App** | [Flutter](https://flutter.dev) — one codebase for Android + iOS |
-| **On-device TTS** | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) running [Piper](https://github.com/rhasspy/piper) neural voices · the device's built-in voice via `flutter_tts` |
-| **EPUB render + highlight** | [Readium](https://readium.org) via `flutter_readium` |
-| **Audio playback** | `flutter_soloud` (gapless PCM streaming) + `audio_service` (background + lock-screen MediaSession) |
-| **Library storage** | [Drift](https://drift.simonbinder.eu/) (SQLite) |
-| **Sync highlighting** | Sentence-level, deterministic, and offline |
+## Building from source
 
-Voices are downloaded on demand (one-time, checksum-verified) and then run fully offline — which keeps the app itself a ~65 MB install.
-
----
-
-## 🚦 Status
-
-Narrarr **v1.2.0 is released** — a working, device-tested Android app with the full loop running end-to-end:
-
-> import a DRM-free EPUB → read it in a real Readium reader → narrate it with an offline voice → **the current sentence highlights in sync and the page auto-follows** → background playback with lock-screen controls.
-
-Verified on an Android emulator **and a real Pixel 8** (including EPUB import and on-demand voice download). iOS support and app-store / F-Droid distribution are still to come. Work is tracked as **[GitHub issues](../../issues)**.
-
----
-
-## 🚀 Getting started
-
-Two ways in: **install the prebuilt Android APK** (fastest), or **build from source**.
-
-### 📲 Install on Android (prebuilt APK)
-
-No toolchain needed — just download and install.
-
-1. **[⬇️ Download from Releases »](https://github.com/nikhilsutaria/Narrarr/releases)** — open the newest release and grab the `Narrarr-…-arm64-v8a.apk` asset under **Assets** (~65 MB).
-   - Built for **arm64-v8a** — effectively every Android phone from the last several years. (Not for x86 emulators; for those, build from source.)
-2. Open the downloaded `.apk`. The first time, Android asks permission to **install unknown apps** — allow it for the app you downloaded with (**Settings → Apps → _your browser/files app_ → Install unknown apps → Allow**), then tap **Install**.
-3. Launch Narrarr, import a DRM-free EPUB you own, and press **Listen** — your device's built-in voice starts reading right away. For a more natural voice, download one from **Settings → Voices** (one-time, ~64 MB, checksum-verified); it runs fully offline after that.
-
-> 💡 **Want a zero-setup demo?** Each release also has a `Narrarr-QA-…-arm64-v8a.apk` — a testing build with a sample book (*The Odyssey*) and the default voice pre-bundled, so the read-aloud loop works the moment it installs, no network needed. It installs side-by-side with the regular app as **"Narrarr QA"**.
-
-> Narrarr is not yet on an app store — app-store / F-Droid distribution is on the [roadmap](#-roadmap).
-
-### 🛠️ Build from source
-
-#### Prerequisites
-
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) (Dart `^3.8`)
-- **Android:** minSdk **24**, compileSdk **36**, NDK **27** (required by `sherpa_onnx` + `flutter_readium`)
-- A connected Android device or emulator
-
-#### Run it
+You'll need the [Flutter SDK](https://docs.flutter.dev/get-started/install) (Dart `^3.8`) and an Android device or emulator. The Android build needs minSdk 24, compileSdk 36 and NDK 27, because `sherpa_onnx` and `flutter_readium` require them.
 
 ```bash
-git clone <this-repo-url>
+git clone https://github.com/nikhilsutaria/Narrarr.git
 cd Narrarr
-
-flutter pub get                  # install dependencies
-flutter run --flavor qa          # build & launch on your device/emulator
+flutter pub get
+flutter run --flavor qa
 ```
 
-Narrarr builds in two **flavors**, and `--flavor` is required:
+You have to pass `--flavor`. There are two:
 
-| Flavor | What you get |
-|---|---|
-| `qa` | The develop/demo build: a sample book (*The Odyssey*) and the default voice are **bundled**, so the read-aloud loop works immediately, fully offline. Installs side-by-side as **"Narrarr QA"**. |
-| `prod` | The release build: clean library, no bundled voice (all voices download on demand) — the small APK that ships on the Releases page. |
+- `qa` bundles *The Odyssey* and the Amy (low) voice, so narration works immediately with no downloads. It installs as "Narrarr QA", next to the normal app.
+- `prod` is what goes on the Releases page: an empty library and no bundled voices, so the APK stays small.
 
-#### Other useful commands
+Other commands you'll probably want:
 
 ```bash
-flutter analyze                       # lint
-flutter test                          # run the test suite
-flutter build apk --flavor prod       # release Android build (small, like the Releases page)
-flutter build apk --flavor qa         # QA Android build (sample book + voice bundled)
+flutter analyze
+flutter test
+flutter build apk --flavor prod
+flutter build apk --flavor qa
 
-# Regenerate Drift database code after editing lib/library/drift/
+# after changing anything in lib/library/drift/
 dart run build_runner build --delete-conflicting-outputs
 ```
 
----
+## Status
 
-## 🎙️ Voices (AI readers)
+The current release is v1.3.1. I test releases on a Pixel 8 and a Huawei P30 Pro. On Huawei/EMUI phones the app can freeze when the screen turns off during narration ([#61](../../issues/61)); that's still open.
 
-Out of the box, Narrarr reads with your **device's built-in voice** — no download, works immediately. For a more natural sound, add on-device [Piper](https://github.com/rhasspy/piper) neural voices — **fully offline once installed**, as one-time, checksum-verified downloads (no account needed).
+Done so far:
 
-| Voice | Quality | Get it | Notes |
-|---|---|---|---|
-| **System voice** | Varies by device | Built in | Your phone's text-to-speech voice · the default · no download |
-| **Amy (low)** | Good | Download (~64 MB) | English (US) · natural neural voice |
-| **Amy (medium)** | Higher | Download (~64 MB) | English (US) · a richer take on the default voice |
-| **Ryan (medium)** | Higher | Download (~64 MB) | English (US) · male voice |
+- v1.0: import, the reader, offline neural narration with synced highlighting, background playback, downloadable voices
+- v1.1: reads out of the box with the phone's built-in voice
+- v1.2: gapless playback, 0.8×–3× speed, better reading of numbers and abbreviations
+- v1.3: time left, skip and auto-rewind, sleep timer, bookmarks, pronunciation fixes
 
-> In the **QA build**, Amy (low) is pre-bundled inside the APK and is the default voice — neural narration works with no download at all.
->
-> Set the reading speed (0.8×–3×) from the speed chip in the player bar; it applies to every voice.
+Next up:
 
-### Download & switch voices
+- v1.4: highlight styles, a reading ruler, notes, search, and a better library
+- iOS
+- Google Play and F-Droid
 
-1. In the app, open **Settings** — the ⚙️ gear at the top-right of your library.
-2. Tap **Voices** — _“Download, choose, and remove offline voices.”_
-3. Tap a voice to **download** it (one-time, from the open [sherpa-onnx voice releases](https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models) — no account). You’ll see download → verify → extract progress.
-4. **Select** a downloaded voice to make it the active reader. Once installed it runs **100% offline**. Remove a voice anytime to reclaim space.
+Bugs and ideas go in [issues](../../issues).
 
-> All voices are English (US) for now. Want another language or voice? [Open an issue](../../issues) to request one.
+## Docs
 
----
+The background research is in [`docs/research/`](docs/research/README.md): [product vision](docs/research/01-product-vision.md), [market and competition](docs/research/02-market-competitive-analysis.md), [technical feasibility](docs/research/03-technical-feasibility.md), [architecture](docs/research/04-architecture-and-stack.md), [risks and legal](docs/research/05-risks-legal-compliance.md), and [sources](docs/research/sources.md).
 
-## 🗺️ Roadmap
+## Contributing
 
-- ✅ EPUB import (DRM-free) + library
-- ✅ Readium reader with font/size/spacing/theme
-- ✅ Offline neural read-aloud (sherpa-onnx + Piper)
-- ✅ Sentence-level synced highlighting + page auto-follow
-- ✅ Background playback + lock-screen controls
-- ✅ Download-on-demand higher-quality voices
-- ✅ Small install (~65 MB): neural voices download on demand (v1.0.0)
-- ✅ Narrates out of the box with the device's built-in voice (v1.1.0)
-- ✅ Gapless narration, 0.8×–3× speed control, natural reading of numbers & abbreviations (v1.2.0)
-- ✅ Listening essentials: time left, skip & auto-rewind, sleep timer, bookmarks, pronunciation fixes (v1.3.0)
-- 🔜 Reading & accessibility: highlight styles, reading ruler, notes, search, a better library (v1.4.0)
-- 🔜 iOS support
-- 🔜 App-store / F-Droid distribution
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first; it covers setup and how PRs work. Then have a look at the [issues](../../issues) (`good first issue` is a good place to start) or open a new one. `flutter analyze` and `flutter test` need to pass before you send a PR.
 
-Have an idea or hit a bug? [Open an issue](../../issues) — that's how the roadmap grows.
+If you find a security problem, please don't post it publicly. [SECURITY.md](SECURITY.md) explains how to report it.
 
----
+## Supporting the project
 
-## 📖 Documentation
+Narrarr is free and will stay that way: no ads, no subscription, no account. I build it on my own, in my spare time.
 
-In-depth research and rationale (market gap, feasibility, architecture, legal) lives in **[`docs/research/`](docs/research/README.md)**:
+If it's useful to you and you want to help, [GitHub Sponsors](https://github.com/sponsors/nikhilsutaria) is the place. The money goes toward:
 
-1. [Product Vision](docs/research/01-product-vision.md)
-2. [Market & Competition](docs/research/02-market-competitive-analysis.md)
-3. [Technical Feasibility](docs/research/03-technical-feasibility.md)
-4. [Architecture & Stack](docs/research/04-architecture-and-stack.md)
-5. [Risks, Legal & Compliance](docs/research/05-risks-legal-compliance.md)
-6. [Sources](docs/research/sources.md)
+- the Google Play developer registration
+- the yearly Apple developer fee, which is the main thing standing between Narrarr and iOS
+- test phones, so releases get checked on real hardware
 
----
+Starring the repo, filing bugs, or telling someone who'd like being read to helps too.
 
-## 🤝 Contributing
+## License
 
-Contributions are welcome. Start with **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup, conventions, and the PR process, then browse the **[issues list](../../issues)** — pick one up (look for `good first issue`), or open a new one to propose a feature or report a bug. A `flutter analyze` + `flutter test` run must pass before you submit changes.
+Narrarr is licensed under the [GNU GPL v3](LICENSE). Piper's tooling is GPL-3.0, and copyleft also keeps Narrarr and any forks open. [Technical feasibility](docs/research/03-technical-feasibility.md) and [risks and legal](docs/research/05-risks-legal-compliance.md) go into the reasoning.
 
-🔒 **Found a security issue?** Please report it privately — see **[SECURITY.md](SECURITY.md)**, not the public issue tracker.
+Narrarr only opens DRM-free EPUBs. It doesn't remove DRM and it isn't a bookstore. The legal notes in `docs/` are my own research, not legal advice.
 
----
+## Thanks
 
-## ☕ Support Narrarr
-
-Narrarr is **free, open-source, and always will be** — no subscriptions, no ads, no accounts. It's built and maintained by a solo developer in spare time.
-
-If Narrarr is useful to you, you can help it reach more readers. Donations go directly toward:
-
-- 📱 **Google Play Store** distribution (one-time developer registration fee)
-- 🍎 **Apple App Store** distribution (yearly developer fee — the main blocker for iOS)
-- 🧪 Test devices so releases are verified on real hardware, not just emulators
-
-<a href="https://github.com/sponsors/nikhilsutaria"><img src="https://img.shields.io/badge/♥%20Sponsor%20on%20GitHub-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor on GitHub"/></a>
-
-Can't donate? That's completely fine — **starring the repo ⭐, reporting bugs, and telling a friend who'd love being read to** help just as much.
-
----
-
-## ⚖️ License & legal
-
-- **License:** Narrarr is licensed under the **[GNU General Public License v3.0](LICENSE)**. This copyleft license fits the project's use of GPL-3.0 Piper tooling and keeps Narrarr (and any forks) free and open — see [Technical Feasibility](docs/research/03-technical-feasibility.md) and [Risks, Legal & Compliance](docs/research/05-risks-legal-compliance.md).
-- Narrarr **only** opens DRM-free EPUBs you own. It does **not** remove DRM and is **not** a content store.
-- The legal/compliance notes in the docs are good-faith research, **not legal advice**.
-
----
-
-## 🙏 Acknowledgments
-
-- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and [Piper](https://github.com/rhasspy/piper) for on-device neural TTS
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and [Piper](https://github.com/rhasspy/piper) for the on-device voices
 - [Readium](https://readium.org) and `flutter_readium` for EPUB rendering
-- [Atkinson Hyperlegible](https://brailleinstitute.org/freefont) by the Braille Institute — accessible typography, free for everyone
-
-<div align="center">
-
-**Built for everyone who just wants to be read to — from the books they already own.**
-
-</div>
+- The Braille Institute for [Atkinson Hyperlegible](https://brailleinstitute.org/freefont)
